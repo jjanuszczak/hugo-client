@@ -1,0 +1,165 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hugo-native-client.local/schemas/manifest-v1.schema.json",
+  "title": "Hugo Native Client manifest v1",
+  "type": "object",
+  "required": ["schemaVersion", "site", "pages"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "site": { "$ref": "#/$defs/site" },
+    "navigation": { "type": "array", "items": { "$ref": "#/$defs/navigationItem" } },
+    "pages": { "type": "array", "items": { "$ref": "#/$defs/page" } },
+    "assets": { "type": "array", "items": { "$ref": "#/$defs/asset" } }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "site": {
+      "type": "object",
+      "required": ["title"],
+      "properties": {
+        "title": { "type": "string" },
+        "baseURL": { "type": "string", "format": "uri" },
+        "defaultLanguage": { "type": "string" },
+        "languages": { "type": "array", "items": { "type": "string" } },
+        "chromeOmittedReason": { "type": "string" },
+        "chrome": { "$ref": "#/$defs/siteChrome" }
+      },
+      "additionalProperties": true
+    },
+    "siteChrome": {
+      "type": "object",
+      "description": "Optional declarative site branding and links. Does not permit arbitrary HTML or scripts.",
+      "properties": {
+        "header": { "$ref": "#/$defs/chromeRegion" },
+        "footer": { "$ref": "#/$defs/chromeRegion" }
+      },
+      "additionalProperties": true
+    },
+    "chromeRegion": {
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "logo": { "$ref": "#/$defs/assetReference" },
+        "links": { "type": "array", "items": { "$ref": "#/$defs/link" } },
+        "text": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "navigationItem": {
+      "type": "object",
+      "required": ["id", "label", "url"],
+      "properties": {
+        "id": { "type": "string" },
+        "label": { "type": "string" },
+        "url": { "type": "string" },
+        "parent": { "type": "string" },
+        "weight": { "type": "integer" },
+        "external": { "type": "boolean" },
+        "menu": { "enum": ["main", "footer"] }
+      },
+      "additionalProperties": true
+    },
+    "page": {
+      "type": "object",
+      "required": ["id", "path", "title", "rendering"],
+      "properties": {
+        "id": { "type": "string", "description": "Stable repository-relative content identity; normally the normalized sourcePath." },
+        "sourcePath": { "type": "string" },
+        "path": { "type": "string", "description": "Site-local URL path when the page belongs to baseURL; otherwise the resolved external URL." },
+        "canonicalURL": { "type": "string", "format": "uri" },
+        "title": { "type": "string" },
+        "summary": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "draft": { "type": "boolean" },
+        "section": { "type": "string" },
+        "kind": { "type": "string" },
+        "language": { "type": "string" },
+        "taxonomies": { "type": "object", "additionalProperties": { "type": "array", "items": { "type": "string" } } },
+        "rendering": { "$ref": "#/$defs/rendering" },
+        "blocks": { "type": "array", "items": { "$ref": "#/$defs/block" } }
+      },
+      "additionalProperties": true
+    },
+    "rendering": {
+      "type": "object",
+      "required": ["mode"],
+      "properties": {
+        "mode": { "enum": ["native", "web", "mixed"] },
+        "fallbackURL": { "type": "string" },
+        "reason": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "block": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "type": "string" },
+        "level": { "type": "integer", "minimum": 1, "maximum": 6 },
+        "text": { "type": "string" },
+        "inlines": { "type": "array", "items": { "$ref": "#/$defs/inline" } },
+        "ordered": { "type": "boolean" },
+        "items": { "type": "array", "items": { "type": "array", "items": { "$ref": "#/$defs/block" } } },
+        "src": { "$ref": "#/$defs/assetReference" },
+        "alt": { "type": "string" },
+        "caption": { "type": "string" },
+        "tone": { "enum": ["note", "tip", "warning", "important"] },
+        "children": { "type": "array", "items": { "$ref": "#/$defs/block" } },
+        "title": { "type": "string" },
+        "summary": { "type": "string" },
+        "href": { "type": "string" },
+        "language": { "type": "string" },
+        "attribution": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "inline": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "enum": ["text", "link", "emphasis", "strong", "code"] },
+        "text": { "type": "string" },
+        "href": { "type": "string" },
+        "children": { "type": "array", "items": { "$ref": "#/$defs/inline" } }
+      },
+      "additionalProperties": true
+    },
+    "link": {
+      "type": "object",
+      "required": ["label", "href"],
+      "properties": {
+        "label": { "type": "string" },
+        "href": { "type": "string" },
+        "external": { "type": "boolean" }
+      },
+      "additionalProperties": true
+    },
+    "asset": {
+      "type": "object",
+      "required": ["id", "path"],
+      "properties": {
+        "id": { "type": "string" },
+        "sourcePath": { "type": "string" },
+        "path": { "type": "string" },
+        "mediaType": { "type": "string" },
+        "alt": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "assetReference": {
+      "oneOf": [
+        { "type": "string" },
+        {
+          "type": "object",
+          "required": ["path"],
+          "properties": {
+            "path": { "type": "string" },
+            "alt": { "type": "string" },
+            "mediaType": { "type": "string" }
+          },
+          "additionalProperties": true
+        }
+      ]
+    }
+  }
+}

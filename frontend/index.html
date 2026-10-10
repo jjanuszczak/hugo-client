@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f7f8fa" />
+    <title>Hugo Native Client</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-frame">
+      <nav class="rail" aria-label="Application">
+        <a class="brand-mark" href="#home" aria-label="Hugo Native Client home">H</a>
+        <div class="rail-group">
+          <button class="rail-button" aria-label="Home" title="Home" data-rail="home">
+            <svg viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></svg>
+          </button>
+          <button class="rail-button active" aria-label="Content" title="Content" data-rail="content">
+            <svg viewBox="0 0 24 24"><path d="M5 4.5A2.5 2.5 0 0 1 7.5 2H20v18H7.5A2.5 2.5 0 0 0 5 22z"/><path d="M5 5v17M9 7h7M9 11h7M9 15h5"/></svg>
+          </button>
+          <button class="rail-button" aria-label="Search" title="Search" data-rail="search">
+            <svg viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/></svg>
+          </button>
+          <button class="rail-button" aria-label="Build activity" title="Build activity" data-rail="builds">
+            <svg viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0-6 6v4l-2 3h16l-2-3V9a6 6 0 0 0-6-6z"/><path d="M9.5 19a2.5 2.5 0 0 0 5 0"/></svg>
+          </button>
+        </div>
+        <div class="rail-bottom">
+          <button class="rail-button" aria-label="Settings" title="Settings" data-rail="settings">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="m19.4 15 .1.1 1.1 1.9-2 3.4-2.2-.4a8.3 8.3 0 0 1-1.7 1l-.8 2h-4l-.8-2a8.3 8.3 0 0 1-1.7-1l-2.2.4-2-3.4 1.1-1.9a8 8 0 0 1 0-2.1l-1.1-1.9 2-3.4 2.2.4a8.3 8.3 0 0 1 1.7-1l.8-2h4l.8 2a8.3 8.3 0 0 1 1.7 1l2.2-.4 2 3.4-1.1 1.9a8 8 0 0 1-.1 2z" transform="translate(0 -1) scale(.94)"/></svg>
+          </button>
+          <div class="avatar" aria-label="Local workspace">J</div>
+        </div>
+      </nav>
+
+      <aside class="navigation" aria-label="Content navigation">
+        <div class="project-switcher">
+          <div class="project-icon">N</div>
+          <div class="project-label"><span class="eyebrow">LOCAL PROJECT</span><strong id="project-name">Northstar Journal</strong></div>
+          <button id="project-menu" class="icon-button" aria-label="Project options" title="Project options">⌄</button>
+        </div>
+        <button id="open-project" class="open-project"><span class="plus">＋</span> Open Hugo repository</button>
+        <input id="folder-input" class="visually-hidden" type="file" webkitdirectory directory multiple aria-label="Choose a Hugo repository" />
+
+        <div class="sidebar-heading"><span>WORKSPACE</span><button class="icon-button" aria-label="Add workspace item">＋</button></div>
+        <button class="nav-item selected" data-view="All content"><span class="nav-symbol">▤</span><span>All content</span><span class="count">24</span></button>
+        <button class="nav-item" data-view="Drafts"><span class="nav-symbol">◷</span><span>Drafts</span><span class="count">3</span></button>
+        <button class="nav-item" data-view="Menus"><span class="nav-symbol">☷</span><span>Menus</span></button>
+
+        <div class="sidebar-heading pages-heading"><span>CONTENT</span><button class="icon-button" aria-label="Filter pages">⌕</button></div>
+        <div class="section-label"><span class="chevron">⌄</span>Pages <span class="count" id="page-count">18</span></div>
+        <div class="page-list" id="page-list">
+          <button class="page-row current" data-page="home"><span class="page-dot published"></span><span class="page-title">Welcome to Northstar</span></button>
+          <button class="page-row" data-page="field-notes"><span class="page-dot published"></span><span class="page-title">Field notes from the coast</span></button>
+          <button class="page-row" data-page="community"><span class="page-dot draft"></span><span class="page-title">Building a local community</span><span class="draft-tag">DRAFT</span></button>
+          <button class="page-row" data-page="about"><span class="page-dot published"></span><span class="page-title">About the journal</span></button>
+          <button class="page-row" data-page="resources"><span class="page-dot published"></span><span class="page-title">Resources and links</span></button>
+        </div>
+        <div class="section-label collapsed"><span class="chevron">›</span>Posts <span class="count">6</span></div>
+        <div class="section-label collapsed"><span class="chevron">›</span>Resources <span class="count">4</span></div>
+        <div class="sidebar-foot"><span class="sync-dot"></span><span>Synced from local files</span></div>
+      </aside>
+
+      <main class="workspace">
+        <header class="topbar">
+          <div class="breadcrumbs"><span>Content</span><span class="slash">/</span><strong id="breadcrumb-title">Welcome to Northstar</strong></div>
+          <div class="top-actions">
+            <span id="demo-badge" class="demo-badge"><span class="demo-dot"></span> DEMO DATA</span>
+            <button id="refresh-button" class="toolbar-button" title="Refresh preview"><svg viewBox="0 0 24 24"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M5.6 9A7 7 0 0 1 18 6l2 2M4 16l2 2a7 7 0 0 0 12.4-3"/></svg></button>
+            <button class="toolbar-button" title="More options" aria-label="More options">•••</button>
+            <button id="inspector-toggle" class="toolbar-button inspector-toggle" title="Toggle details panel" aria-label="Toggle details panel"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button>
+          </div>
+        </header>
+
+        <div class="tabs-bar" id="tabs-bar" role="tablist" aria-label="Open pages">
+          <button class="tab active" role="tab" aria-selected="true" data-page="home"><span class="tab-icon">▤</span>Welcome to Northstar <span class="tab-close">×</span></button>
+          <button class="tab add-tab" aria-label="Open another page">＋</button>
+        </div>
+
+        <div class="content-scroll" id="content-scroll">
+          <article class="page-preview" id="page-preview">
+            <div class="preview-toolbar">
+              <div class="preview-label"><span class="preview-state"></span><span id="render-label">NATIVE PREVIEW</span><span class="separator">·</span><span class="muted">Updated just now</span></div>
+              <div class="mode-switch" role="group" aria-label="Preview mode">
+                <button class="mode-option active" data-mode="native">Native</button>
+                <button class="mode-option" data-mode="web">Website</button>
+              </div>
+            </div>
+
+            <iframe id="website-frame" class="website-frame" title="Hugo rendered website preview" hidden></iframe>
+            <div class="site-masthead"><span class="site-mark">H</span><span id="site-title">NORTHSTAR JOURNAL</span><span id="site-nav" class="site-nav">Stories　 About　 Resources</span></div>
+            <div class="article-wrap">
+              <div class="article-kicker"><span class="kicker-line"></span><span id="article-kicker">A NOTE FROM THE EDITORS</span></div>
+              <h1 id="article-title">Welcome to Northstar</h1>
+              <p class="article-deck" id="article-summary">A journal about place, people, and the small details that help us find our way.</p>
+              <div id="demo-byline" class="byline"><div class="author-avatar">N</div><div><strong>Northstar Editorial</strong><span>October 10, 2026 <span class="dot-sep">·</span> 4 min read</span></div><span class="byline-spacer"></span><button class="share-button" title="Copy page link">↗ <span>Share</span></button></div>
+              <div id="hero-image" class="hero-image" role="img" aria-label="Illustration of a mountain coast at sunrise"><div class="sun"></div><div class="mountain mountain-back"></div><div class="mountain mountain-front"></div><div class="sea"></div><div class="image-caption">Morning light over the northern shoreline <span>Photo essay · 01</span></div></div>
+              <div class="article-body" id="article-body">
+                <p>Every place has a rhythm. You hear it in the market opening before sunrise, in the ferry that leaves on time, and in the familiar hello exchanged on the walk home.</p>
+                <h2>Start with what is here</h2>
+                <p>Northstar is a space for careful observation and useful stories. We look closely at the people, landscapes, and everyday decisions that shape a community over time.</p>
+                <blockquote>“The best way to understand a place is to pay attention to what its people already know.”</blockquote>
+                <p>In the weeks ahead, we will share field notes, conversations, and practical resources from across the coast.</p>
+              </div>
+              <div id="page-footer" class="page-footer"><span>Northstar Journal</span><span>© 2026</span><span>Contact</span><span>Privacy</span></div>
+            </div>
+          </article>
+        </div>
+
+        <footer class="statusbar">
+          <div class="status-left"><span class="status-indicator"></span><span id="build-state">Watching local files</span><span class="status-divider"></span><span class="status-branch">⌂ <span id="root-label">Demo repository</span></span></div>
+          <div class="status-right"><span class="freshness"><span class="freshness-check">✓</span> Preview is current</span><span class="status-divider"></span><span id="hugo-version">Demo Hugo 0.149.1</span></div>
+        </footer>
+      </main>
+
+      <aside class="inspector" id="inspector" aria-label="Page details">
+        <div class="inspector-header"><div><span class="eyebrow">PAGE DETAILS</span><h2>Inspector</h2></div><button id="close-inspector" class="icon-button" aria-label="Close details panel">×</button></div>
+        <div class="inspector-tabs" role="tablist" aria-label="Page details"><button class="inspector-tab active" role="tab" aria-selected="true" data-inspector-tab="overview">Overview</button><button class="inspector-tab" role="tab" aria-selected="false" data-inspector-tab="validation">Validation <span class="issue-count">2</span></button></div>
+        <div class="inspector-content" id="inspector-content">
+          <section class="inspector-section"><div class="section-title">PAGE STATUS <span class="published-pill">PUBLISHED</span></div><div class="field-row"><span>Content type</span><strong id="field-type">Page</strong></div><div class="field-row"><span>Section</span><strong id="field-section">Home</strong></div><div class="field-row"><span>Language</span><strong>English <span class="muted">en</span></strong></div></section>
+          <section class="inspector-section"><div class="section-title">FRONT MATTER</div><div class="field-row"><span>Title</span><strong id="field-title">Welcome to Northstar</strong></div><div class="field-row"><span>Date</span><strong id="field-date">Oct 10, 2026</strong></div><div class="field-row"><span>Draft</span><strong id="field-draft">No</strong></div><div class="field-row"><span>Tags</span><div class="tag-list"><span class="tag">Welcome</span><span class="tag">Journal</span></div></div></section>
+          <section class="inspector-section"><div class="section-title">SOURCE</div><button class="source-path"><span class="file-icon">▤</span><span id="source-path">content/_index.md</span><span class="external-icon">↗</span></button></section>
+          <section class="inspector-section validations"><div class="section-title">VALIDATION <button class="text-action" data-show-validation>View all</button></div><div class="validation-row warn"><span class="validation-icon">!</span><div><strong>Meta description is short</strong><span>Consider adding more detail.</span></div></div><div class="validation-row info"><span class="validation-icon">i</span><div><strong>Image alt text found</strong><span>All images have descriptions.</span></div></div></section>
+          <section class="inspector-section"><div class="section-title">RENDERING</div><div class="rendering-card"><span class="rendering-icon">◈</span><div><strong>Native supported</strong><span>All blocks render natively</span></div><span class="rendering-check">✓</span></div></section>
+        </div>
+        <div class="inspector-footer"><button class="outline-button" id="open-source">⌘ <span>View source path</span></button></div>
+      </aside>
+    </div>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

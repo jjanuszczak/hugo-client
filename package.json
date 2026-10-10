@@ -1,0 +1,16 @@
+{
+  "name": "hugo-native-client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/dev-server.mjs",
+    "build": "node scripts/build.mjs",
+    "preview": "node scripts/preview-server.mjs",
+    "app:dev": "tauri dev",
+    "app:build": "tauri build --bundles app"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.10.0"
+  }
+}
