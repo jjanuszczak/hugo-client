@@ -1,0 +1,29 @@
+{{- $items := slice -}}
+{{- $menuName := .menu -}}
+{{- range .entries -}}
+  {{- $id := .Identifier -}}
+  {{- if not $id -}}{{- $id = .URL -}}{{- end -}}
+  {{- if not $id -}}{{- $id = .PageRef -}}{{- end -}}
+  {{- $url := .URL -}}
+  {{- if not $url -}}{{- with .Page -}}{{- $url = .RelPermalink -}}{{- end -}}{{- end -}}
+  {{- $entry := dict
+    "id" $id
+    "label" .Name
+    "url" $url
+    "weight" .Weight
+    "external" (or
+          (hasPrefix $url "http://")
+          (hasPrefix $url "https://")
+          (hasPrefix $url "mailto:")
+          (hasPrefix $url "tel:")
+    )
+    "menu" $menuName
+  -}}
+  {{- with .Parent -}}{{- $entry = merge $entry (dict "parent" .) -}}{{- end -}}
+  {{- $items = $items | append $entry -}}
+  {{- with .Children -}}
+    {{- $children := partial "hugo-client/menu-items.html" (dict "entries" . "menu" $menuName) -}}
+    {{- range $children -}}{{- $items = $items | append . -}}{{- end -}}
+  {{- end -}}
+{{- end -}}
+{{- return $items -}}

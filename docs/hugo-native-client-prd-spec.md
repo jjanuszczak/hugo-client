@@ -1,7 +1,7 @@
 # Hugo Native Content Client
 
 **Product requirements and technical specification**  
-**Status:** MVP implementation in progress; Manifest v1 pilot path implemented  
+**Status:** Read-only MVP implementation in progress; future product direction includes repository sync, content editing, and GitHub review submission
 **Date:** 10 October 2026
 
 ## 1. Product summary
@@ -25,14 +25,18 @@ A native renderer alone has weak differentiation from `hugo server` plus a brows
 5. **Fast through event-driven work.** Coalesce filesystem events, avoid unnecessary Hugo invocations, and update only affected views when possible.
 6. **Separate content from UI.** The manifest and content model must not depend on a particular desktop UI toolkit.
 7. **Progressive adoption.** Existing Hugo sites remain usable without restructuring; native support can be added incrementally.
+8. **Explicit repository operations.** Clone, pull, edit, commit, push, and PR actions are visible and user initiated. Never discard local work or publish changes implicitly.
 
 ## 4. Goals and non-goals
 
 ### Goals
 
 - Open a local Hugo repository and detect its Hugo configuration and project structure.
+- Open an existing local checkout or clone a remote Git repository into an app-managed local workspace.
+- Sync a local checkout with its configured upstream while identifying local changes and conflicts before updating.
 - Produce a useful native content browser and preview for sites that opt into the native content contract.
 - Support common editorial tasks around content discovery, review, metadata validation, and asset inspection.
+- Progress toward safe in-app content editing, with reviewable diffs and explicit GitHub submission workflows.
 - Watch local changes and refresh previews quickly while keeping the app responsive.
 - Preserve the regular Hugo output as the fidelity reference and provide a WebView fallback.
 - Keep the core content model reusable by future desktop, mobile, or command-line clients.
@@ -42,9 +46,11 @@ A native renderer alone has weak differentiation from `hugo server` plus a brows
 - Reimplement Hugo's Go template engine or compete with Hugo's site generator.
 - Convert arbitrary theme HTML/CSS/JavaScript into a native widget tree.
 - Guarantee pixel-identical native rendering of every theme, shortcode, or script.
-- Replace a user's editor, Git client, deployment pipeline, or Hugo command line.
-- Provide a collaborative hosted CMS, remote publishing, or Git write operations.
+- Replace a user's deployment pipeline or Hugo command line.
+- Provide a collaborative hosted CMS or remote site publishing.
 - Require all pages to adopt native blocks before the app can be useful.
+
+The current MVP remains read-only. Editing and Git write operations are later delivery stages, not capabilities implied by the current build.
 
 ## 5. Users and core jobs
 
@@ -66,7 +72,8 @@ A native renderer alone has weak differentiation from `hugo server` plus a brows
 
 ### Main workspace
 
-- **Repository chooser:** choose an existing local repository; show detected Hugo project root and configuration.
+- **Repository chooser:** open an existing local repository or enter a remote Git URL to clone; show detected Hugo project root and configuration. Keep recent repositories available.
+- **Repository status:** show local branch, upstream, ahead/behind state, and uncommitted changes. Offer fetch/pull only with a clear summary of what will change.
 - **Content navigation:** browse sections, pages, drafts, taxonomies, languages, and menus as available in the manifest.
 - **Content pane:** native page title, summary, metadata, and supported content blocks.
 - **Preview mode:** switch between native view and faithful Hugo/WebView output for a page.
@@ -126,6 +133,17 @@ MVP should prove that the app helps with a real Hugo repository beyond simply op
 - Arbitrary shortcode/template execution or a promise that every theme shortcode will have a native equivalent.
 - Cross-repository content aggregation, cloud sync, publishing, and plugins.
 
+### Future workflow scope
+
+The product is intended to grow beyond review into a local-first editing and GitHub contribution workflow. A later release should support:
+
+- Cloning a remote Git repository locally and reopening it in the app; local folders remain supported.
+- Fetching and pulling the configured upstream for existing checkouts, with dirty-tree and divergence checks before any update that could affect user work.
+- Editing supported Hugo content while preserving unrecognized source exactly. Unsupported front matter, Markdown, shortcode syntax, and bundle files must remain intact when the user changes a supported field or block.
+- Reviewing a source diff before creating a commit, pushing a branch, or opening a pull request. GitHub submission requires explicit confirmation and must report authentication, push, and PR errors clearly.
+
+The app must not silently resolve conflicts, overwrite edits made outside the app, commit, push, or create a PR. Broader Git hosts can be considered separately; GitHub is the initial PR target.
+
 ## 8. Functional requirements
 
 ### Repository and Hugo lifecycle
@@ -133,8 +151,10 @@ MVP should prove that the app helps with a real Hugo repository beyond simply op
 - **FR-1:** The user can choose a repository root and the app detects whether it is a Hugo project.
 - **FR-2:** The app locates Hugo using an explicit configured path or the user's executable search path; it reports the version and build errors.
 - **FR-3:** The app invokes Hugo with a controlled working directory and arguments, honoring project configuration and environment as configured by the user.
-- **FR-4:** The app does not write to source content or invoke Git mutations without an explicit future user action.
+- **FR-4:** In the read-only MVP, the app does not write to source content or mutate Git state. Later releases may do so only through explicit, reviewable user actions.
 - **FR-5:** Build output is isolated from the source tree where practical, with project-configured output behavior respected.
+- **FR-5a (future):** The user can open a local Git checkout or clone a remote URL into an app-managed workspace and reopen it later.
+- **FR-5b (future):** The app reports branch, upstream, dirty state, and ahead/behind status. Before pulling, it fetches and presents the update state; it does not overwrite dirty or divergent work without a defined, user-approved resolution.
 
 ### Content model and native rendering
 
@@ -146,6 +166,15 @@ MVP should prove that the app helps with a real Hugo repository beyond simply op
 - **FR-10a:** The native renderer can display recognized shortcodes through safe declarative adapters that map shortcode parameters and supported children to known native block types. The renderer never executes Hugo templates, arbitrary HTML, CSS, or JavaScript.
 - **FR-10b:** When a shortcode cannot be mapped, preserve readable child content where possible and show an explicit placeholder with the shortcode name/reason and a direct Website-mode action. Do not silently omit the shortcode or imply that the native page is complete.
 - **FR-10c:** Expose per-page or per-block coverage as native, text fallback, or Website required. A page containing a mixture reports mixed coverage.
+
+### Editing and GitHub contribution (future requirements)
+
+- **FR-19:** Edits preserve the original source for all syntax the editor does not understand. The raw source document remains authoritative; decoded manifest fields are not serialized over the source wholesale.
+- **FR-20:** The app detects on-disk changes made by external editors and offers reload, compare, or conflict resolution before saving over them.
+- **FR-21:** Before committing, the user can inspect the exact source diff and choose the files and changes to include.
+- **FR-22:** The user can create or select a branch, enter a commit message, and explicitly commit and push. Report rejected pushes and upstream divergence without discarding local commits.
+- **FR-23:** The user can submit a pushed branch as a GitHub pull request, review title/body/base branch, and see the resulting PR URL and status. GitHub credentials are handled through an OS-appropriate secure credential mechanism.
+- **FR-24:** Clone, fetch, pull, commit, push, and PR operations show progress and actionable errors. Network and authentication failures leave the local working tree recoverable.
 
 ### Watching and refresh
 
@@ -186,6 +215,7 @@ Success should be judged by a pilot with a real site: time to locate/review cont
 7. **Content model:** typed site, page, asset, navigation, and block structures.
 8. **Native renderer:** maps supported blocks to platform controls and styles.
 9. **Web renderer:** system WebView or external browser pointed to locally generated Hugo output.
+10. **Repository/Git adapter (future):** clone, status, fetch/pull, branch, diff, commit, and push operations isolated behind a repository lifecycle interface. GitHub PR creation is a separate provider integration.
 
 ### Recommended implementation shape
 
@@ -350,7 +380,7 @@ The native UI consumes this model, never raw Hugo template internals. Keep parsi
 - Does the pilot require OS-native widgets throughout, or is a native window, OS menus/dialogs, and system WebView acceptable for the shared workspace UI?
 - Which real Hugo site and theme will be the pilot?
 - Is the first high-value workflow content review, validation, asset discovery, or another task?
-- Should the initial app be read-only, or is in-app metadata/content editing essential to adoption?
+- Which content fields and block types should the first editing release support, and which source forms must remain view-only?
 - Should the manifest be generated by Hugo templates, an official module, or a companion CLI?
 - What content coverage makes a pilot useful: percentage of pages, block types, or a defined set of editorial tasks?
 - Is system WebView fallback sufficient, or must the first release support launching the system browser?
@@ -369,9 +399,17 @@ Generate a manifest from one representative Hugo site; validate schema evolution
 
 Ship repository selection, content browser, native rendering for core blocks, validation, build diagnostics, and WebView fallback. Measure return usage and task completion in the pilot.
 
-### Stage 3: Workflow depth
+### Stage 3: Repository lifecycle
 
-Based on pilot evidence, add the most valuable review/authoring functions, theme adapters, richer Markdown, search, or asset workflows. Consider editing only after deciding how edits remain compatible with front matter, bundles, and Git workflows.
+Support remote cloning, recent repositories, Git status, and conflict-safe fetch/pull for existing local checkouts. Keep clone targets and credentials under user control. Prove behavior with clean, dirty, and diverged checkouts before adding source writes.
+
+### Stage 4: Editing and contribution workflow
+
+Add lossless editing for an explicitly supported content subset, external-change detection, source diff review, branch/commit/push actions, and GitHub PR submission. Preserve the raw-source authority described in the editing safety rules. Defer any edit the app cannot represent without changing unrelated source.
+
+### Stage 5: Workflow depth
+
+Based on pilot evidence, add the most valuable theme adapters, richer Markdown, search, asset workflows, and broader Git-host support.
 
 ### Development chunks and dependencies
 
@@ -381,16 +419,19 @@ Build in the sequence below. Chunks 2 and 3 can proceed in parallel after Chunk 
 |---|---|---|
 | **1. Pilot and product contract** | Select the pilot Hugo repository and review its config, menus, theme header/footer, content bundles, assets, and common blocks. Confirm the read-only review job, define what “native” means for the shell versus page renderer, and record MVP page/block coverage. Track kickoff decisions and pilot status in `docs/implementation-kickoff.md`. | None |
 | **2. Platform and shell spike** | Validate the selected Tauri 2 approach on macOS and Omarchy Linux. Prove app launch, native window and folder-dialog behavior, menu/keyboard conventions, filesystem event support on each host, and system WebView availability. The platform spike verifies that filesystem events can be received; application-level watching, filtering, debounce, and rebuild coordination remain in Chunk 9. Record the custom web-based workspace tradeoff, packaging requirements, minimum window size, responsive behavior, and a static Peak SaaS inspired shell. | 1 |
-| **3. Hugo repository and build adapter** | Implement repository selection and Hugo/config/version detection; run Hugo with controlled arguments; capture build output and errors; establish generated output and build lifecycle APIs. | 1 |
-| **4. Manifest v1 and pilot producer** | Publish the JSON Schema and generate a manifest from the pilot when its compatibility coverage is known. Define stable page IDs, navigation/menu mapping, page metadata, blocks, assets, URL/date/language rules, render mode, fallback policy, unknown-field behavior, and optional declarative `site.chrome` fields. Preserve shortcode provenance and per-block native/text/Website disposition so unsupported content can be represented at its original position. Populate header/footer fields only when the pilot can describe them without arbitrary HTML; WebView remains the full-fidelity path. **Progress:** schema draft, internal pilot producer, runtime schema validation, and app consumption are implemented. A reusable site-side producer remains open. | 1, 3 |
+| **3. Hugo repository and build adapter** | Implement repository selection and Hugo/config/version detection; run Hugo with controlled arguments; capture build output and errors; establish generated output and build lifecycle APIs. **Progress:** folder selection and inspection, Hugo version/config detection, controlled Hugo commands, resolved content loading, and isolated preview startup/shutdown are implemented. Hugo failures now include command context and captured output; a replacement preview is adopted only after it responds, retaining the last good preview on startup failure. Runtime failure-path checks remain to be verified. | 1 |
+| **4. Manifest v1 and pilot producer** | Publish the JSON Schema and generate a manifest from the pilot when its compatibility coverage is known. Define stable page IDs, navigation/menu mapping, page metadata, blocks, assets, URL/date/language rules, render mode, fallback policy, unknown-field behavior, and optional declarative `site.chrome` fields. Preserve shortcode provenance and per-block native/text/Website disposition so unsupported content can be represented at its original position. Populate header/footer fields only when the pilot can describe them without arbitrary HTML; WebView remains the full-fidelity path. **Progress: complete.** The internal producer and reusable Hugo output format export Manifest v1 metadata, nested menus, author-declared safe blocks, data-only site chrome and image assets. A companion source-enrichment script captures original Markdown bytes, shortcode lexemes and parameter hints, byte/line ranges, safe text flow, readable shortcode children, and Website-required fallback dispositions. It downgrades native claims when unsupported source syntax or shortcodes appear. The checked-in fixture covers those contracts and validates against the schema using the app's Rust validator. The producer uses Hugo's resolved site model and does not put rendered page HTML into native content. | 1, 3 |
 | **5. App shell and workspace state** | Implement left rail, content navigation sidebar, tabs, central pane, context panel, and app status bar. Add panel collapse behavior and selection preservation at narrower widths. Populate with mock data until the manifest loader is ready. | 2 |
 | **6. Hugo content/config reader and manifest loader** | Load resolved pages/config with the compatibility adapter; prefer and validate manifest v1 when present. Map menus into the sidebar, populate page lists and tabs, and expose metadata and diagnostics to the context panel. Reject unsafe paths and report malformed or unsupported data without crashing. | 3, 5 (manifest branch also requires 4) |
 | **7. Native content renderer** | Render the agreed pilot Markdown subset in the central pane, including accessible links. Display declared site branding/header and footer only if Chunk 4 included fields in the schema; otherwise label native rendering as omitting theme chrome. Keep unknown or unsupported output at its content position with an explicit reason and Website action. Add declared adapters for prioritized shortcode patterns; preserve readable shortcode children as text fallback. Do not execute shortcode templates or arbitrary web code. **Progress:** SC-3 placeholders and SC-4 adapters for `ref`/`relref`, `button`, `lead`, `quick-answer`, and `faq`/`faq-item` are implemented. Figure/media adapters remain dependent on safe Hugo-resolved assets. | 4, 6 |
 | **8. WebView fallback and mode switching** | Display Hugo-generated output for web-only or unsupported pages, switch directly from an unsupported shortcode placeholder to the matching page in Website mode, and identify the active mode. Verify theme header/footer and page output remain Hugo-rendered in this path. | 2, 3, 5, 6, 7 |
 | **9. Watch, rebuild, and refresh** | Watch relevant inputs, debounce/coalesce changes, serialize builds, atomically adopt successful output/manifest snapshots, retain the last good view on failure, and preserve selected page and scroll position where feasible. Update the bottom status bar with current/stale and build states. | 3, 4, 5, 6, 7, 8 |
 | **10. MVP diagnostics and hardening** | Complete actionable error reporting, required metadata and missing-asset checks, path/link safety, accessibility pass, and platform-specific packaging checks. Verify acceptance criteria on macOS and Omarchy Linux with the pilot repository; document limitations and pilot measurements. | 2, 6, 7, 8, 9 |
+| **11. Repository lifecycle** | Add local and remote repository entry points, app-managed clone locations, recent-repository reopening, Git status, fetch, and conflict-safe pull. Present dirty/diverged state and preserve all user work. | 3, 10 |
+| **12. Lossless content editing** | Define and implement a narrow editable subset using raw source as authority; preserve unknown syntax, detect external changes, and provide diff/recovery before writing. | 4, 6, 7, 11 |
+| **13. GitHub contribution flow** | Add branch selection/creation, staged diff review, commit, push, GitHub PR creation, credential handling, progress, and recovery from rejected pushes or API failures. | 11, 12 |
 
-**Dependency path:** `1 → 2 and 3`; `1 → schema design for 4`; `3 → pilot generation for 4`; `2 → 5`; `3 + 4 + 5 → 6`; `6 → 7 and 8`; `7 + 8 → 9`; `9 → 10`. Chunk 5 can start with mock data as soon as Chunk 2 is complete.
+**Dependency path:** `1 → 2 and 3`; `1 → schema design for 4`; `3 → pilot generation for 4`; `2 → 5`; `3 + 4 + 5 → 6`; `6 → 7 and 8`; `7 + 8 → 9`; `9 → 10 → 11 → 12 → 13`. Chunk 5 can start with mock data as soon as Chunk 2 is complete. Chunks 11–13 are future scope and do not change the read-only MVP boundary.
 
 #### Shortcode work sequence within the chunks
 
@@ -401,7 +442,7 @@ Build in the sequence below. Chunks 2 and 3 can proceed in parallel after Chunk 
 | **SC-3. Text fallback and placeholders** | **Complete:** source-ordered content flow keeps native text around shortcode positions, shows a Website-required placeholder with readable child text, and provides a direct switch to the same page in Website mode. Text rendering retains link labels; original Markdown and link targets remain lossless in `sourceDocument.rawSource`. | SC-2, 6, 7, 8 |
 | **SC-4. Priority adapters** | **Complete (first priority set):** map Hugo `ref`/`relref` and Blowfish `button` to safe native links, flatten `lead`, map `quick-answer` to a native callout, and render nested `faq`/`faq-item` as disclosure-based question/answer items. Adapted tokens and rendered items retain source ranges for future editing. Malformed/unresolved forms remain Website-required. Rust unit tests, pilot schema/load checks, and the macOS app build pass. Figure remains deferred until Hugo-resolved asset metadata is available; interactive patterns stay Website-first. | SC-2, 7, 8 |
 
-`SC-1 → SC-2 → SC-3 → SC-4` is the first shortcode delivery path. SC-2 uses the existing internal pilot producer; a reusable site-side producer remains a separate Chunk 4 follow-on. No adapter may execute a template or arbitrary script/style payload. Next on the main plan is Chunk 2, Omarchy/Linux platform and shell validation, which also unblocks Chunk 5.
+`SC-1 → SC-2 → SC-3 → SC-4` is the first shortcode delivery path. SC-2 uses the internal producer and the standalone producer's source-enrichment fixture. No adapter may execute a template or arbitrary script/style payload. Next on the main plan is Chunk 2, Omarchy/Linux platform and shell validation, which also unblocks Chunk 5.
 
 ## 14. Acceptance criteria for MVP
 
@@ -417,6 +458,8 @@ Build in the sequence below. Chunks 2 and 3 can proceed in parallel after Chunk 
 - Build failures retain the last good preview and expose actionable diagnostics.
 - No content files, Git state, or remote services are modified as a side effect.
 - A pilot user can complete the chosen content-review task more efficiently than the current workflow, with the improvement measured and documented.
+
+Future release acceptance extends beyond the read-only MVP: a remote repository can be cloned and reopened; a clean local checkout can pull upstream changes; dirty or divergent checkouts retain all local work; supported edits produce a reviewable source diff without altering unknown syntax; and the user can explicitly commit, push, and create a GitHub PR with a recoverable result.
 
 ## 15. Decision summary
 

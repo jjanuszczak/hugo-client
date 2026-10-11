@@ -1,0 +1,451 @@
+{
+  "assets": [
+    {
+      "alt": "Fixture logo",
+      "id": "fixture-logo",
+      "mediaType": "image/svg+xml",
+      "path": "/images/fixture-logo.svg",
+      "sourcePath": "static/images/fixture-logo.svg"
+    }
+  ],
+  "navigation": [
+    {
+      "external": false,
+      "id": "guides",
+      "label": "Guides",
+      "menu": "main",
+      "url": "/guides/",
+      "weight": 10
+    },
+    {
+      "external": false,
+      "id": "first-steps",
+      "label": "First steps",
+      "menu": "main",
+      "parent": "guides",
+      "url": "/guides/first-steps/",
+      "weight": 1
+    },
+    {
+      "external": false,
+      "id": "about",
+      "label": "About",
+      "menu": "footer",
+      "url": "/about/",
+      "weight": 10
+    }
+  ],
+  "pages": [
+    {
+      "canonicalURL": "https://example.test/guides/first-steps/",
+      "date": "2026-10-01T09:30:00-07:00",
+      "draft": false,
+      "id": "content/guides/first-steps.md",
+      "kind": "page",
+      "language": "en",
+      "path": "/guides/first-steps/",
+      "rendering": {
+        "fallbackURL": "/guides/first-steps/",
+        "mode": "web",
+        "reason": "This site-side producer exports resolved page metadata only. Hugo Website output remains the content rendering authority."
+      },
+      "section": "guides",
+      "sourcePath": "content/guides/first-steps.md",
+      "title": "First steps",
+      "sourceDocument": {
+        "format": "hugo-markdown",
+        "rawSource": "---\ntitle: First steps\ndate: 2026-10-01T09:30:00-07:00\ndraft: false\n---\n\nThis body is kept on the Hugo Website path.\n",
+        "bodyStartByte": 72,
+        "shortcodeTokens": [],
+        "roundTripPolicy": "Preserve rawSource; edits replace explicit byte ranges only."
+      },
+      "contentFlow": [
+        {
+          "type": "text",
+          "blocks": [
+            {
+              "type": "paragraph",
+              "inlines": [
+                {
+                  "type": "text",
+                  "text": "This body is kept on the Hugo Website path."
+                }
+              ]
+            }
+          ],
+          "sourceRange": {
+            "startByte": 72,
+            "endByte": 117,
+            "startLine": 6,
+            "endLine": 8
+          }
+        }
+      ]
+    },
+    {
+      "canonicalURL": "https://example.test/guides/",
+      "date": "2026-10-01T09:30:00-07:00",
+      "draft": false,
+      "id": "content/guides/_index.md",
+      "kind": "section",
+      "language": "en",
+      "path": "/guides/",
+      "rendering": {
+        "fallbackURL": "/guides/",
+        "mode": "web",
+        "reason": "This site-side producer exports resolved page metadata only. Hugo Website output remains the content rendering authority."
+      },
+      "section": "guides",
+      "sourcePath": "content/guides/_index.md",
+      "title": "Guides",
+      "sourceDocument": {
+        "format": "hugo-markdown",
+        "rawSource": "---\ntitle: Guides\n---\n\nGuide section.\n",
+        "bodyStartByte": 22,
+        "shortcodeTokens": [],
+        "roundTripPolicy": "Preserve rawSource; edits replace explicit byte ranges only."
+      },
+      "contentFlow": [
+        {
+          "type": "text",
+          "blocks": [
+            {
+              "type": "paragraph",
+              "inlines": [
+                {
+                  "type": "text",
+                  "text": "Guide section."
+                }
+              ]
+            }
+          ],
+          "sourceRange": {
+            "startByte": 22,
+            "endByte": 38,
+            "startLine": 4,
+            "endLine": 6
+          }
+        }
+      ]
+    },
+    {
+      "canonicalURL": "https://example.test/",
+      "date": "2026-10-01T09:30:00-07:00",
+      "draft": false,
+      "id": "content/_index.md",
+      "kind": "home",
+      "language": "en",
+      "path": "/",
+      "rendering": {
+        "fallbackURL": "/",
+        "mode": "web",
+        "reason": "This site-side producer exports resolved page metadata only. Hugo Website output remains the content rendering authority."
+      },
+      "section": "",
+      "sourcePath": "content/_index.md",
+      "title": "Home",
+      "sourceDocument": {
+        "format": "hugo-markdown",
+        "rawSource": "---\ntitle: Home\n---\n\nHome page content is intentionally not copied into the manifest.\n",
+        "bodyStartByte": 20,
+        "shortcodeTokens": [],
+        "roundTripPolicy": "Preserve rawSource; edits replace explicit byte ranges only."
+      },
+      "contentFlow": [
+        {
+          "type": "text",
+          "blocks": [
+            {
+              "type": "paragraph",
+              "inlines": [
+                {
+                  "type": "text",
+                  "text": "Home page content is intentionally not copied into the manifest."
+                }
+              ]
+            }
+          ],
+          "sourceRange": {
+            "startByte": 20,
+            "endByte": 86,
+            "startLine": 4,
+            "endLine": 6
+          }
+        }
+      ]
+    },
+    {
+      "blocks": [
+        {
+          "level": 2,
+          "text": "About this fixture",
+          "type": "heading"
+        },
+        {
+          "inlines": [
+            {
+              "text": "This block is explicitly declared by the site author.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "canonicalURL": "https://example.test/about/",
+      "draft": false,
+      "id": "content/about.md",
+      "kind": "page",
+      "language": "en",
+      "path": "/about/",
+      "rendering": {
+        "fallbackURL": "/about/",
+        "mode": "mixed",
+        "reason": "Shortcodes remain Website-required unless a source-aware adapter represents them."
+      },
+      "section": "",
+      "sourcePath": "content/about.md",
+      "summary": "About page summary from front matter.",
+      "taxonomies": {
+        "tags": [
+          "fixture",
+          "producer"
+        ]
+      },
+      "title": "About",
+      "sourceDocument": {
+        "format": "hugo-markdown",
+        "rawSource": "---\ntitle: About\ndescription: About page summary from front matter.\ntags:\n  - fixture\n  - producer\nhugoClient:\n  blocks:\n    - type: heading\n      level: 2\n      text: About this fixture\n    - type: paragraph\n      inlines:\n        - type: text\n          text: This block is explicitly declared by the site author.\n---\n\nAbout page.\n\n{{< unknown-widget label=\"雪 > step\" mystery=\"two words\" >}}inner text{{< /unknown-widget >}}\n",
+        "bodyStartByte": 319,
+        "shortcodeTokens": [
+          {
+            "type": "shortcode",
+            "name": "unknown-widget",
+            "syntax": "angle",
+            "closing": false,
+            "selfClosing": false,
+            "raw": "{{< unknown-widget label=\"雪 > step\" mystery=\"two words\" >}}",
+            "parameters": [
+              {
+                "kind": "named",
+                "name": "label",
+                "value": "雪 > step",
+                "raw": "label=\"雪 > step\""
+              },
+              {
+                "kind": "named",
+                "name": "mystery",
+                "value": "two words",
+                "raw": "mystery=\"two words\""
+              }
+            ],
+            "disposition": "website-required",
+            "sourceRange": {
+              "startByte": 333,
+              "endByte": 394,
+              "startLine": 20,
+              "endLine": 20
+            }
+          },
+          {
+            "type": "shortcode",
+            "name": "unknown-widget",
+            "syntax": "angle",
+            "closing": true,
+            "selfClosing": false,
+            "raw": "{{< /unknown-widget >}}",
+            "parameters": [],
+            "disposition": "website-required",
+            "sourceRange": {
+              "startByte": 404,
+              "endByte": 427,
+              "startLine": 20,
+              "endLine": 20
+            }
+          }
+        ],
+        "roundTripPolicy": "Preserve rawSource; edits replace explicit byte ranges only."
+      },
+      "contentFlow": [
+        {
+          "type": "text",
+          "blocks": [
+            {
+              "type": "paragraph",
+              "inlines": [
+                {
+                  "type": "text",
+                  "text": "About page."
+                }
+              ]
+            }
+          ],
+          "sourceRange": {
+            "startByte": 319,
+            "endByte": 333,
+            "startLine": 17,
+            "endLine": 20
+          }
+        },
+        {
+          "type": "shortcode",
+          "name": "unknown-widget",
+          "disposition": "website-required",
+          "readableChildren": [
+            {
+              "type": "paragraph",
+              "inlines": [
+                {
+                  "type": "text",
+                  "text": "inner text"
+                }
+              ]
+            }
+          ],
+          "sourceRange": {
+            "startByte": 333,
+            "endByte": 427,
+            "startLine": 20,
+            "endLine": 20
+          }
+        }
+      ]
+    },
+    {
+      "canonicalURL": "https://example.test/categories/",
+      "draft": false,
+      "id": "/categories/",
+      "kind": "taxonomy",
+      "language": "en",
+      "path": "/categories/",
+      "rendering": {
+        "fallbackURL": "/categories/",
+        "mode": "web",
+        "reason": "This site-side producer exports resolved page metadata only. Hugo Website output remains the content rendering authority."
+      },
+      "section": "categories",
+      "title": "Categories"
+    },
+    {
+      "blocks": [
+        {
+          "inlines": [
+            {
+              "text": "This page is fully represented by its declared block.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "canonicalURL": "https://example.test/native-sample/",
+      "draft": false,
+      "id": "content/native-sample.md",
+      "kind": "page",
+      "language": "en",
+      "path": "/native-sample/",
+      "rendering": {
+        "fallbackURL": "/native-sample/",
+        "mode": "native",
+        "reason": "The site author declares these blocks complete for native rendering."
+      },
+      "section": "",
+      "sourcePath": "content/native-sample.md",
+      "title": "Declarative sample",
+      "sourceDocument": {
+        "format": "hugo-markdown",
+        "rawSource": "---\ntitle: Declarative sample\nhugoClient:\n  complete: true\n  blocks:\n    - type: paragraph\n      inlines:\n        - type: text\n          text: This page is fully represented by its declared block.\n---\n",
+        "bodyStartByte": 201,
+        "shortcodeTokens": [],
+        "roundTripPolicy": "Preserve rawSource; edits replace explicit byte ranges only."
+      },
+      "contentFlow": []
+    },
+    {
+      "canonicalURL": "https://example.test/tags/fixture/",
+      "draft": false,
+      "id": "/tags/fixture/",
+      "kind": "term",
+      "language": "en",
+      "path": "/tags/fixture/",
+      "rendering": {
+        "fallbackURL": "/tags/fixture/",
+        "mode": "web",
+        "reason": "This site-side producer exports resolved page metadata only. Hugo Website output remains the content rendering authority."
+      },
+      "section": "tags",
+      "title": "Fixture"
+    },
+    {
+      "canonicalURL": "https://example.test/tags/producer/",
+      "draft": false,
+      "id": "/tags/producer/",
+      "kind": "term",
+      "language": "en",
+      "path": "/tags/producer/",
+      "rendering": {
+        "fallbackURL": "/tags/producer/",
+        "mode": "web",
+        "reason": "This site-side producer exports resolved page metadata only. Hugo Website output remains the content rendering authority."
+      },
+      "section": "tags",
+      "title": "Producer"
+    },
+    {
+      "canonicalURL": "https://example.test/tags/",
+      "draft": false,
+      "id": "/tags/",
+      "kind": "taxonomy",
+      "language": "en",
+      "path": "/tags/",
+      "rendering": {
+        "fallbackURL": "/tags/",
+        "mode": "web",
+        "reason": "This site-side producer exports resolved page metadata only. Hugo Website output remains the content rendering authority."
+      },
+      "section": "tags",
+      "title": "Tags"
+    }
+  ],
+  "schemaVersion": 1,
+  "site": {
+    "baseURL": "https://example.test/",
+    "chrome": {
+      "footer": {
+        "links": [
+          {
+            "external": true,
+            "href": "mailto:hello@example.test",
+            "label": "Email"
+          }
+        ],
+        "text": "Footer links are optional declarative data."
+      },
+      "header": {
+        "links": [
+          {
+            "external": false,
+            "href": "/about/",
+            "label": "About"
+          },
+          {
+            "external": true,
+            "href": "https://gohugo.io/",
+            "label": "Hugo"
+          }
+        ],
+        "logo": {
+          "alt": "Fixture logo",
+          "mediaType": "image/svg+xml",
+          "path": "/images/fixture-logo.svg"
+        },
+        "text": "A declarative fixture site",
+        "title": "Manifest Fixture"
+      }
+    },
+    "defaultLanguage": "en",
+    "languages": [
+      "en"
+    ],
+    "title": "Manifest Fixture"
+  }
+}

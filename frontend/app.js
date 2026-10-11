@@ -105,12 +105,12 @@ function syncInspectorTabSelection() {
   });
 }
 
-function showToast(message) {
+function showToast(message, durationMs = 2400) {
   const toast = $("#toast");
   toast.textContent = message;
   toast.classList.add("show");
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => toast.classList.remove("show"), 2400);
+  toastTimer = setTimeout(() => toast.classList.remove("show"), durationMs);
 }
 
 function renderBody(page) {
@@ -493,12 +493,20 @@ async function openRepository() {
 async function inspectSelectedFolder(path) {
   $("#build-state").textContent = "Checking Hugo project…";
   $(".status-indicator").style.background = "#d3a856";
+  const loadedProjectBeforeAttempt = !usingDemoData;
+  let loadSucceeded = false;
   try {
     if (window.__TAURI__?.core?.invoke) {
+      const inspection = await window.__TAURI__.core.invoke("inspect_project", { path });
+      if (!inspection.is_hugo) throw new Error(inspection.message);
+      $("#build-state").textContent = inspection.hugo_version
+        ? `Found Hugo · ${inspection.hugo_version} · loading resolved content…`
+        : "Hugo project found · resolving content…";
       const snapshot = await window.__TAURI__.core.invoke("load_project", { path });
       const summary = snapshot.summary;
       const manifest = snapshot.manifest;
       const viewPages = (manifest.pages || []).map(manifestPageToView);
+      if (viewPages.length === 0) throw new Error("Hugo returned no pages the MVP can show.");
       const mainMenu = (manifest.navigation || []).filter((item) => item.menu === "main");
       const footerMenu = (manifest.navigation || []).filter((item) => item.menu === "footer");
       selectedProjectPath = summary.path;
@@ -506,7 +514,6 @@ async function inspectSelectedFolder(path) {
       $("#root-label").textContent = summary.path;
       $("#hugo-version").textContent = summary.hugo_version ?? "Hugo not found";
       $("#page-count").textContent = summary.content_count;
-      if (viewPages.length === 0) throw new Error("Hugo returned no pages the MVP can show.");
       usingDemoData = false;
       projectMainMenu = mainMenu;
       projectFooterMenu = footerMenu;
@@ -526,6 +533,7 @@ async function inspectSelectedFolder(path) {
       resetTabs(selectedPage);
       updatePage(selectedPage);
       $("#build-state").textContent = viewPages.length + " pages loaded from Hugo";
+      loadSucceeded = true;
       showToast(summary.name + ": loaded " + viewPages.length + " pages and " + mainMenu.length + " main-menu links.");
     } else {
       const folderName = path.split(/[\\/]/).filter(Boolean).at(-1) || "Local repository";
@@ -535,10 +543,13 @@ async function inspectSelectedFolder(path) {
       showToast("The browser preview cannot read selected files. Open this folder in the desktop app to load its Hugo pages.");
     }
   } catch (error) {
-    $("#build-state").textContent = "Could not inspect project";
-    showToast(String(error));
+    $("#build-state").textContent = loadedProjectBeforeAttempt
+      ? "Load failed · previous project view retained"
+      : "Hugo project could not be loaded";
+    const message = String(error).replace(/^Error: /, "");
+    showToast(message, 10000);
   } finally {
-    $(".status-indicator").style.background = "#45ad80";
+    $(".status-indicator").style.background = loadSucceeded ? "#45ad80" : "#d36b6b";
   }
 }
 

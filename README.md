@@ -54,6 +54,7 @@ The native renderer supports headings, paragraphs, quotes, simple list items, an
 - Product requirements and the 10-chunk plan: [`docs/hugo-native-client-prd-spec.md`](docs/hugo-native-client-prd-spec.md)
 - Current kickoff contract and pilot status: [`docs/implementation-kickoff.md`](docs/implementation-kickoff.md)
 - Manifest schema draft: [`schemas/hugo-client-manifest-v1.schema.json`](schemas/hugo-client-manifest-v1.schema.json)
+- Reusable Hugo site-side manifest producer and fixture: [`producer/README.md`](producer/README.md)
 - Visual direction: [`docs/peak-saas-layout.jpeg`](docs/peak-saas-layout.jpeg)
 
 To resume implementation, start with the **Handoff for the next developer or agent** section in `docs/implementation-kickoff.md`. SC-1 through SC-4's first adapter set are complete. The next planned work is Chunk 2: Omarchy/Linux platform and runtime validation. SC-1 findings are in `docs/shortcode-inventory.md`.
