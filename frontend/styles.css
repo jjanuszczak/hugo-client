@@ -17,4 +17,59 @@
 .inspector-tab{position:relative;flex:1;height:100%;text-align:left}
 .inspector-tab.active{border-bottom-color:transparent;color:#3f5da4;font-weight:600}
 .inspector-tab::after{position:absolute;right:0;bottom:-1px;left:0;height:2px;background:transparent;content:""}
-.inspector-tab.active::after{background:#6078b7}
+.inspector-tab.active::after{background:#6078b7}.pin-button{display:none}
+
+@media(max-width:1520px),(max-height:1300px){
+  body{min-width:0;min-height:0}
+  .app-frame{min-height:0;grid-template-columns:58px minmax(0,1fr)}
+  .rail{z-index:4}
+  .workspace,.workspace-wide{grid-column:2;min-width:0}
+  .navigation{display:none;position:absolute;z-index:3;top:0;bottom:31px;left:58px;width:min(224px,calc(100vw - 58px));padding:17px 10px 48px;box-shadow:8px 0 24px #25314b20}
+  .app-frame.navigation-open .navigation{display:block}
+  .navigation-backdrop{display:none;position:absolute;z-index:2;inset:0 0 31px 58px;border:0;background:#20263324}
+  .app-frame.navigation-open .navigation-backdrop{display:block}
+  .navigation .sidebar-foot{position:absolute;right:0;bottom:0;left:0;width:auto}
+  .inspector{display:none;position:fixed;z-index:5;top:0;right:0;bottom:31px;left:auto;grid-column:auto;width:280px;max-width:calc(100vw - 58px);box-shadow:-10px 0 28px #25314b20}
+  .app-frame.inspector-open .inspector{display:flex}
+  .topbar{padding:0 10px}
+  .breadcrumbs{min-width:0;flex:1;overflow:hidden;white-space:nowrap}
+  .breadcrumbs strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .top-actions{flex:none;gap:2px}
+  .demo-badge{display:none}
+  .tabs-bar{padding-left:7px}
+  .tab{min-width:0;flex:1;padding:0 8px}
+  .tab.add-tab{flex:none}
+  .site-masthead{padding:0 18px}
+  .article-wrap{padding:28px 18px 18px}
+  .statusbar{padding:0 8px}
+  .status-left{min-width:0;overflow:hidden}
+  #build-state,.status-branch{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #root-label{display:inline-block;max-width:22vw;overflow:hidden;text-overflow:ellipsis;vertical-align:bottom;white-space:nowrap}
+  .status-right{display:none}
+}
+
+@media(max-height:1300px){
+  .rail{padding-top:10px;padding-bottom:8px;gap:12px}
+  .topbar{height:42px}
+  .tabs-bar{height:34px}
+  .preview-toolbar{height:36px;padding-right:14px;padding-left:14px}
+  .site-masthead{height:42px}
+  .article-wrap{padding-top:16px}
+  .hero-image{height:120px}
+  .website-frame,.page-preview.hugo-website .website-frame{height:calc(100vh - 112px);min-height:0}
+}
+
+@media(max-width:1520px),(max-height:1300px){
+  .pin-button{display:inline-grid}
+  .sidebar-actions{display:flex;align-items:center;gap:3px}
+  .pin-button[aria-pressed="true"]{color:#3b65d9;background:#eef2ff}
+  .app-frame.navigation-pinned:not(.inspector-pinned){grid-template-columns:58px minmax(170px,224px) minmax(0,1fr)}
+  .app-frame.inspector-pinned:not(.navigation-pinned){grid-template-columns:58px minmax(0,1fr) minmax(220px,280px)}
+  .app-frame.navigation-pinned.inspector-pinned{grid-template-columns:58px minmax(170px,224px) minmax(0,1fr) minmax(220px,280px)}
+  .app-frame.navigation-pinned .navigation{display:block;position:relative;z-index:1;top:auto;right:auto;bottom:auto;left:auto;grid-column:2;width:auto;box-shadow:none}
+  .app-frame.navigation-pinned .navigation-backdrop{display:none!important}
+  .app-frame.navigation-pinned .workspace{grid-column:3}
+  .app-frame.inspector-pinned:not(.navigation-pinned) .workspace{grid-column:2}
+  .app-frame.inspector-pinned .inspector{display:flex;position:relative;top:auto;right:auto;bottom:auto;left:auto;grid-column:4;width:auto;max-width:none;box-shadow:none}
+  .app-frame.inspector-pinned:not(.navigation-pinned) .inspector{grid-column:3}
+}

@@ -15,7 +15,7 @@
           <button class="rail-button" aria-label="Home" title="Home" data-rail="home">
             <svg viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></svg>
           </button>
-          <button class="rail-button active" aria-label="Content" title="Content" data-rail="content">
+          <button class="rail-button active" aria-label="Content" title="Content" data-rail="content" aria-controls="content-navigation" aria-expanded="true">
             <svg viewBox="0 0 24 24"><path d="M5 4.5A2.5 2.5 0 0 1 7.5 2H20v18H7.5A2.5 2.5 0 0 0 5 22z"/><path d="M5 5v17M9 7h7M9 11h7M9 15h5"/></svg>
           </button>
           <button class="rail-button" aria-label="Search" title="Search" data-rail="search">
@@ -33,7 +33,7 @@
         </div>
       </nav>
 
-      <aside class="navigation" aria-label="Content navigation">
+      <aside class="navigation" id="content-navigation" aria-label="Content navigation">
         <div class="project-switcher">
           <div class="project-icon">N</div>
           <div class="project-label"><span class="eyebrow">LOCAL PROJECT</span><strong id="project-name">Northstar Journal</strong></div>
@@ -47,7 +47,7 @@
         <button class="nav-item" data-view="Drafts"><span class="nav-symbol">◷</span><span>Drafts</span><span class="count">3</span></button>
         <button class="nav-item" data-view="Menus"><span class="nav-symbol">☷</span><span>Menus</span></button>
 
-        <div class="sidebar-heading pages-heading"><span>CONTENT</span><button class="icon-button" aria-label="Filter pages">⌕</button></div>
+        <div class="sidebar-heading pages-heading"><span>CONTENT</span><span class="sidebar-actions"><button id="pin-navigation" class="icon-button pin-button" type="button" aria-label="Pin content sidebar" aria-pressed="false" title="Pin sidebar">⌖</button><button class="icon-button" aria-label="Filter pages">⌕</button></span></div>
         <div class="section-label"><span class="chevron">⌄</span>Pages <span class="count" id="page-count">18</span></div>
         <div class="page-list" id="page-list">
           <button class="page-row current" data-page="home"><span class="page-dot published"></span><span class="page-title">Welcome to Northstar</span></button>
@@ -60,6 +60,7 @@
         <div class="section-label collapsed"><span class="chevron">›</span>Resources <span class="count">4</span></div>
         <div class="sidebar-foot"><span class="sync-dot"></span><span>Synced from local files</span></div>
       </aside>
+      <button class="navigation-backdrop" type="button" aria-label="Close content navigation"></button>
 
       <main class="workspace">
         <header class="topbar">
@@ -114,7 +115,7 @@
       </main>
 
       <aside class="inspector" id="inspector" aria-label="Page details">
-        <div class="inspector-header"><div><span class="eyebrow">PAGE DETAILS</span><h2>Inspector</h2></div><button id="close-inspector" class="icon-button" aria-label="Close details panel">×</button></div>
+        <div class="inspector-header"><div><span class="eyebrow">PAGE DETAILS</span><h2>Inspector</h2></div><span class="sidebar-actions"><button id="pin-inspector" class="icon-button pin-button" type="button" aria-label="Pin details sidebar" aria-pressed="false" title="Pin sidebar">⌖</button><button id="close-inspector" class="icon-button" aria-label="Close details panel">×</button></span></div>
         <div class="inspector-tabs" role="tablist" aria-label="Page details"><button class="inspector-tab active" role="tab" aria-selected="true" data-inspector-tab="overview">Overview</button><button class="inspector-tab" role="tab" aria-selected="false" data-inspector-tab="validation">Validation <span class="issue-count">2</span></button></div>
         <div class="inspector-content" id="inspector-content">
           <section class="inspector-section"><div class="section-title">PAGE STATUS <span class="published-pill">PUBLISHED</span></div><div class="field-row"><span>Content type</span><strong id="field-type">Page</strong></div><div class="field-row"><span>Section</span><strong id="field-section">Home</strong></div><div class="field-row"><span>Language</span><strong>English <span class="muted">en</span></strong></div></section>

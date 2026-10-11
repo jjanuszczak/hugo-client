@@ -90,6 +90,7 @@ let projectFooterMenu = [];
 let projectNavigationSnapshot = null;
 let projectPreviewUrl = "";
 let selectedProjectPath = "";
+let repositoryDialogOpen = false;
 let toastTimer;
 
 const $ = (selector) => document.querySelector(selector);
@@ -402,10 +403,63 @@ function setPreview(mode) {
 function toggleInspector(forceOpen) {
   const inspector = $("#inspector");
   const hidden = typeof forceOpen === "boolean" ? !forceOpen : !inspector.classList.contains("inspector-hidden");
+  if (hidden) setInspectorPinned(false);
   inspector.classList.toggle("inspector-hidden", hidden);
   $(".app-frame").classList.toggle("inspector-closed", hidden);
+  $(".app-frame").classList.toggle("inspector-open", !hidden);
   $(".workspace").classList.toggle("workspace-wide", hidden);
 }
+
+const compactShell = window.matchMedia("(max-width: 1520px), (max-height: 1300px)");
+const appFrame = $(".app-frame");
+const contentNavigationToggle = $('[data-rail="content"]');
+let navigationPinned = false;
+let inspectorPinned = false;
+
+function setNavigationPinned(pinned) {
+  navigationPinned = compactShell.matches && pinned;
+  appFrame.classList.toggle("navigation-pinned", navigationPinned);
+  $("#pin-navigation").setAttribute("aria-pressed", String(navigationPinned));
+  $("#pin-navigation").setAttribute("aria-label", navigationPinned ? "Unpin content sidebar" : "Pin content sidebar");
+  if (navigationPinned) setCompactNavigation(true);
+}
+
+function setInspectorPinned(pinned) {
+  inspectorPinned = compactShell.matches && pinned;
+  appFrame.classList.toggle("inspector-pinned", inspectorPinned);
+  $("#pin-inspector").setAttribute("aria-pressed", String(inspectorPinned));
+  $("#pin-inspector").setAttribute("aria-label", inspectorPinned ? "Unpin details sidebar" : "Pin details sidebar");
+  if (inspectorPinned) toggleInspector(true);
+}
+
+function setCompactNavigation(open) {
+  const isOpen = compactShell.matches && open;
+  if (!isOpen) setNavigationPinned(false);
+  appFrame.classList.toggle("navigation-open", isOpen);
+  contentNavigationToggle.setAttribute("aria-expanded", String(compactShell.matches ? isOpen : true));
+  if (isOpen) $("#open-project").focus();
+  else if ($("#content-navigation").contains(document.activeElement)) contentNavigationToggle.focus();
+}
+
+function syncCompactShell() {
+  setCompactNavigation(false);
+  setInspectorPinned(false);
+  toggleInspector(!compactShell.matches);
+}
+
+contentNavigationToggle.addEventListener("click", () => {
+  if (compactShell.matches) setCompactNavigation(!appFrame.classList.contains("navigation-open"));
+});
+$(".navigation-backdrop").addEventListener("click", () => setCompactNavigation(false));
+$("#pin-navigation").addEventListener("click", () => setNavigationPinned(!navigationPinned));
+$("#pin-inspector").addEventListener("click", () => setInspectorPinned(!inspectorPinned));
+compactShell.addEventListener("change", syncCompactShell);
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && appFrame.classList.contains("navigation-open")) {
+    setCompactNavigation(false);
+  }
+});
+syncCompactShell();
 
 function showValidation() {
   inspectorTab = "validation";
@@ -421,13 +475,19 @@ function showOverview() {
 }
 
 async function openRepository() {
-  if (window.__TAURI__?.dialog?.open) {
-    const selected = await window.__TAURI__.dialog.open({ directory: true, multiple: false, title: "Open Hugo repository" });
-    if (selected) inspectSelectedFolder(selected);
-    return;
+  if (repositoryDialogOpen) return;
+  repositoryDialogOpen = true;
+  try {
+    if (window.__TAURI__?.dialog?.open) {
+      const selected = await window.__TAURI__.dialog.open({ directory: true, multiple: false, title: "Open Hugo repository" });
+      if (selected) inspectSelectedFolder(selected);
+      return;
+    }
+    $("#folder-input").click();
+    showToast("Choose a Hugo project folder in the picker.");
+  } finally {
+    repositoryDialogOpen = false;
   }
-  $("#folder-input").click();
-  showToast("Choose a Hugo project folder in the picker.");
 }
 
 async function inspectSelectedFolder(path) {
@@ -484,6 +544,13 @@ async function inspectSelectedFolder(path) {
 
 $("#open-project").addEventListener("click", openRepository);
 $("#project-menu").addEventListener("click", openRepository);
+document.addEventListener("keydown", (event) => {
+  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "o" && !event.altKey && !event.shiftKey) {
+    event.preventDefault();
+    openRepository();
+  }
+});
+window.addEventListener("menu-open-project", openRepository);
 $("#folder-input").addEventListener("change", (event) => {
   const file = event.target.files?.[0];
   if (!file) return;
@@ -551,6 +618,7 @@ $("#page-list").addEventListener("click", (event) => {
   } else if (row.dataset.page) {
     updatePage(row.dataset.page, { addTab: true });
   }
+  setCompactNavigation(false);
 });
 $("#tabs-bar").addEventListener("click", (event) => {
   if (event.target.closest(".add-tab")) showToast("Choose a page from the content list.");
@@ -572,6 +640,7 @@ $(".navigation").addEventListener("click", (event) => {
     if (usingDemoData) showToast("Hugo menu entries appear when a site is connected.");
     else renderMenuNavigation();
   }
+  setCompactNavigation(false);
 });
 $("#open-source").addEventListener("click", () => showToast(pages[selectedPage].source_path || pages[selectedPage].path));
 $(".share-button").addEventListener("click", () => showToast("Page links are copied from the Hugo manifest in the native app."));
