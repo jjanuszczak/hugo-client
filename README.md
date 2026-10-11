@@ -30,6 +30,8 @@ Build the macOS `.app` bundle with `npm run app:build`. Linux packages can be bu
 
 On macOS, Tauri uses the system WKWebView. Linux builds require WebKitGTK 4.1 and the distribution's development packages. For Arch-based Omarchy systems, install `webkit2gtk-4.1`, `base-devel`, `curl`, `wget`, `file`, `openssl`, `appmenu-gtk-module`, `libappindicator-gtk3`, `librsvg`, and `xdotool` before building. See [Tauri's platform prerequisites](https://v2.tauri.app/start/prerequisites/) for current package names.
 
+Use **File → Open Hugo Repository** or `Ctrl+O` on Linux (`Command+O` on macOS) to choose a site. The Edit menu provides standard text-selection and clipboard commands for WebView controls.
+
 When you open a repository, the Rust adapter calls `hugo config` and `hugo list all` to load resolved page metadata and menus, then reads supported Markdown blocks from files inside that repository. It starts Hugo's local preview on loopback for full theme output. The preview output, cache, and processed resources go into an app-owned temporary directory; the site source is not edited.
 
 ## Try the pilot site

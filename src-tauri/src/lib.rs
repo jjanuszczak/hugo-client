@@ -7,6 +7,7 @@ use std::process::{Child, Command, Output, Stdio};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
+use tauri::menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder};
 use tauri::{Manager, State};
 
 #[derive(Clone, Serialize)]
@@ -1699,6 +1700,63 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(PreviewServer::default())
+        .setup(|app| {
+            let open_repository =
+                MenuItemBuilder::with_id("open-hugo-repository", "Open Hugo Repository…")
+                    .accelerator("CmdOrCtrl+O")
+                    .build(app)?;
+            let file_menu = SubmenuBuilder::new(app, "File")
+                .item(&open_repository)
+                .separator()
+                .quit()
+                .build()?;
+            let edit_menu = SubmenuBuilder::new(app, "Edit")
+                .undo()
+                .redo()
+                .separator()
+                .cut()
+                .copy()
+                .paste()
+                .separator()
+                .select_all()
+                .build()?;
+
+            #[cfg(target_os = "macos")]
+            let menu = {
+                let app_menu = SubmenuBuilder::new(app, "Hugo Native Client")
+                    .about(None)
+                    .separator()
+                    .services()
+                    .separator()
+                    .hide()
+                    .hide_others()
+                    .show_all()
+                    .separator()
+                    .quit()
+                    .build()?;
+                MenuBuilder::new(app)
+                    .item(&app_menu)
+                    .item(&file_menu)
+                    .item(&edit_menu)
+                    .build()?
+            };
+
+            #[cfg(not(target_os = "macos"))]
+            let menu = MenuBuilder::new(app)
+                .item(&file_menu)
+                .item(&edit_menu)
+                .build()?;
+
+            app.set_menu(menu)?;
+            Ok(())
+        })
+        .on_menu_event(|app, event| {
+            if event.id() == "open-hugo-repository" {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.eval("window.dispatchEvent(new Event('menu-open-project'))");
+                }
+            }
+        })
         .invoke_handler(tauri::generate_handler![inspect_project, load_project])
         .on_window_event(|window, event| {
             if matches!(event, tauri::WindowEvent::Destroyed) {

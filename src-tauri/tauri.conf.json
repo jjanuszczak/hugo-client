@@ -28,6 +28,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "icon": ["icons/icon.png"],
     "category": "Productivity",
     "shortDescription": "Review content in local Hugo sites",
     "longDescription": "A local-first desktop workspace for browsing and reviewing content from Hugo repositories."
