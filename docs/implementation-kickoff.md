@@ -1,7 +1,7 @@
 # MVP implementation kickoff
 
-**Status:** Chunk 1 complete. Chunk 4 MVP producer is implemented and loaded by the native app against the pilot.
-**Updated:** 10 October 2026
+**Status:** SC-1 through SC-4 first adapter set complete. Chunk 2 Omarchy/Linux validation is next.
+**Updated:** 11 October 2026
 
 ## Objective
 
@@ -21,10 +21,12 @@ Deliver a buildable desktop MVP that opens a real local Hugo site and helps its 
 - Rust/Tauri desktop shell and the Peak inspired web workspace build. The macOS `.app` bundle was rebuilt successfully with the Manifest v1 producer and consumer (`npm run app:build`; 11.39 MiB).
 - The native loader now calls Hugo's resolved `list all` and merged `config --format json`, reads Markdown only beneath the selected root, shows page metadata and menus, and starts a loopback Hugo preview into an app-owned temp destination.
 - Basic headings, paragraphs, quotes, and simple list items render in the native pane. Shortcodes, raw HTML, code, tables, and media are currently flagged as unsupported; Website mode uses Hugo's rendered site inside an iframe. Planned shortcode handling: map recognized patterns to declarative native blocks, preserve readable children when possible, and show a positioned placeholder plus Website-mode action otherwise.
-- Unit and pilot-site checks cover CSV parsing, basic Markdown, unsupported markup detection, Hugo page/menu loading, loopback preview startup, and omission of style/script payloads from native blocks. Latest run: 6 passed against the pilot; Hugo resolved 138 app-visible pages, 13 main-menu items, and 2 footer-menu items.
+- Unit and pilot-site checks cover CSV parsing, basic Markdown, unsupported markup detection, Hugo page/menu loading, loopback preview startup, source-preserving shortcode flow, and omission of style/script payloads from native blocks. Latest run: 12 unit tests pass; the pilot integration check loads 139 pages, 13 main-menu items, and 2 footer-menu items.
 - Chunk 4 MVP: the app produces Manifest v1 JSON from Hugo's merged config, resolved page index, menus, front matter, and supported Markdown blocks. The front end now consumes the manifest for page navigation, native rendering, menus, metadata, and Website fallback. The schema records menu location, canonical/local page paths, content kind, and the reason native site chrome is omitted.
 - Shortcode plan added to the PRD and implementation chunks: inventory pilot patterns first; define safe provenance/disposition fields; implement text fallback and explicit placeholders; then add only high-value declarative adapters. No template, arbitrary HTML, CSS, or script execution in native mode.
-- Manifest-backed pilot verification passed in Rust and in the rebuilt macOS app: 138 pages, 13 main-menu items, 2 footer-menu items, with nested menu relationships and page metadata present. The app continued to display the real Hugo Website mode.
+- SC-1 inventory complete: 832 shortcode opening invocations across 31 names in 133 of 198 Markdown files. Findings, risk classes, pilot call sites, and adapter recommendations are in `docs/shortcode-inventory.md`.
+- SC-4 first adapter set verified: the pilot manifest schema-validates and includes native `ref`/`relref` links, `button` links, flattened `lead` content, Quick Answer callouts, and nested FAQ items. Adapted tokens retain source ranges and native disposition; malformed wrappers remain Website-required.
+- Manifest-backed pilot verification passed in Rust and in the rebuilt macOS app: 139 pages, 13 main-menu items, 2 footer-menu items, with nested menu relationships and page metadata present. The app continued to display the real Hugo Website mode.
 - End-to-end desktop review is now confirmed: the native app loaded the pilot's 138 pages; the Menus view showed 13 main-menu and 2 footer-menu entries with nested hierarchy; Website mode displayed Hugo's actual home page, header, content, and footer.
 - macOS shell, folder picker, preview-mode switch, and the Peak-inspired three-pane workspace were visually reviewed. Omarchy/Linux packaging and runtime validation remain open under Chunk 2.
 - Pilot review found CSS emitted by a shortcode appearing as text in Native mode. The parser now omits `<style>` and `<script>` payloads while preserving the unsupported-content warning and Website fallback; the app was rebuilt and the pilot was reloaded to verify the fix.
@@ -69,8 +71,40 @@ Open the pilot, review the home page and one article, inspect title/date/draft/t
 - MVP page/block coverage and the native/WebView boundary are confirmed against that site.
 - A baseline task is defined so the MVP can be evaluated against the current workflow.
 
-## Immediate dependency
+## Handoff for the next developer or agent
 
-The Tauri/Rust shell and generic architecture work can start from the working contract above. Pilot-specific manifest design and end-to-end implementation depend on the repository path and inventory.
+**SC-1 through SC-4 are complete for the first adapter set. Next recommended: Chunk 2 Omarchy/Linux runtime validation.** The inventory is [`shortcode-inventory.md`](shortcode-inventory.md). SC-2 preserves source for future edits and validates Manifest v1 against the checked-in schema. SC-3 adds ordered text/shortcode flow, readable child text, and a direct Website action. SC-4 maps `ref`/`relref`, `button`, `lead`, `quick-answer`, and `faq`/`faq-item` into safe native content. The figure adapter waits on Hugo-resolved asset metadata; a reusable site-side manifest generator remains open under Chunk 4.
 
-**Chunk 1 is complete. Chunk 4's MVP schema and producer path are implemented and verified against the pilot.** Remaining work to close Chunk 4: validate produced manifests against the published JSON Schema and add a reusable site-side producer/fixture path. The next shortcode work item is SC-1: classify pilot shortcode instances as simple data, readable children, or theme-dependent/interactive before choosing adapter priorities. Other dependencies are Chunk 3's actionable Hugo build-error reporting and Chunk 2's Omarchy/Linux runtime validation; the compatibility reader in Chunk 6 is already implemented, and its manifest branch now consumes the v1 shape. The CSS/script leakage fix is included. The pilot path is available; the user can redirect to a different Hugo site at any point.
+### SC-2 task
+
+1. Read this kickoff, the PRD's “Shortcode rendering strategy” and development-chunk plan, `docs/shortcode-inventory.md`, and `schemas/hugo-client-manifest-v1.schema.json`.
+2. Review `build_manifest_v1`, `manifest_blocks`, and `markdown_blocks` in `src-tauri/src/lib.rs` plus the manifest-to-view conversion in `frontend/app.js`.
+3. Keep the exact source document as the round-trip authority for future editing. Retain source ranges, raw shortcode lexemes, ordered parameters, shortcode syntax and position. Treat decoded parameter values as hints; never discard unknown parameters or formatting during edits. Do not put rendered HTML or executable code in the manifest.
+4. Extend the schema and add source-preservation fixtures/tests for readable-child, nested and interactive shortcode examples. Keep per-token disposition (`native`, `text-fallback`, or `website-required`); until adapters exist, mark all shortcode tokens Website-required. Preserve unknown shortcodes as Website-required placeholders.
+5. Keep native adapter implementations and page UI polish out of SC-2; those belong to SC-3/SC-4 after the representation is reviewable.
+
+### SC-2 exit criteria
+
+- The schema describes exact source provenance/ranges, ordered parameter lexemes, and per-token disposition without treating source as executable/renderable HTML.
+- Raw source survives serialization byte-for-byte; tokens identify ranges that future editors can replace while preserving untouched text and unknown attributes.
+- Unknown/malformed tokens remain available in raw source and do not crash manifest loading.
+- The internal producer validates manifests against the checked-in JSON Schema at load time; fixture tests include a rejected invalid disposition.
+- `cargo test --manifest-path src-tauri/Cargo.toml` and `npm run app:build` pass; the pilot repository remains unchanged.
+
+### Follow-on sequence and open dependencies
+
+- **SC-3 (complete)** renders text fallback blocks and positioned placeholders with a direct Website-mode action. The app's ordered flow is built from source ranges and schema-validated; pilot loading confirms compatibility. This is a presentation fallback, not an editor. Current readable child rendering keeps text and link labels; exact Markdown/link targets remain in `sourceDocument.rawSource` for a later editor.
+- **SC-4 (first priority set complete)** implements `ref`/`relref`, `button`, `lead`, `quick-answer`, and nested `faq`/`faq-item` using declarative data. Pilot loading and schema validation cover the resulting links/callout/FAQ flow. Remaining inventory adapters are deferred by risk and dependency: figure needs Hugo-resolved asset metadata; interactive/media patterns remain Website-first. SC-4 depends on SC-2, Chunk 7's renderer, and Chunk 8's Website path.
+- The reusable site-side producer remains open under Chunk 4. Chunk 3 actionable Hugo build-error reporting and Chunk 2 Omarchy/Linux packaging/runtime validation are independent open work where dependencies permit.
+
+### Working tree and verification
+
+- Workspace: `/Volumes/Dock NVMe SSD/Projects/hugo-client`.
+- Product scope, full chunk/dependency plan, shortcode policy, and acceptance criteria: `docs/hugo-native-client-prd-spec.md`.
+- Completed SC-1 evidence and candidate mappings: `docs/shortcode-inventory.md`.
+- Current implementation and pilot status: this file. README build/run instructions: `README.md`.
+- Pilot: `/Users/johnjanuszczak/Projects/ceo-playbook`; inspect it without modifying its source or Git state.
+- macOS app build: `npm run app:build`. Pilot integration test: `HUGO_CLIENT_PILOT_PATH=/Users/johnjanuszczak/Projects/ceo-playbook cargo test --manifest-path src-tauri/Cargo.toml` (the test starts a loopback server and may need local networking permission).
+- Latest verified baseline (11 October 2026): 12 Rust tests pass; `npm run app:build` creates a 15.05 MiB macOS app bundle; the pilot check loads 139 pages, 13 main-menu entries, and 2 footer-menu entries. Omarchy/Linux has not been verified.
+
+**Completed:** Chunk 1; SC-1 through SC-4 first priority set; MVP portions of Chunks 4, 6, 7, and 8, including manifest production/consumption, runtime schema validation, Website fallback, shortcode placeholders, and safe native adapters. **Do not treat Chunk 4 as fully closed:** a reusable site-side producer and producer fixtures remain open. Chunk 2 Omarchy/Linux runtime validation is open. The CSS/script leakage fix is included. The pilot path can be changed if the user names another site.

@@ -45,7 +45,7 @@ HUGO_CLIENT_PILOT_PATH=/Users/johnjanuszczak/Projects/ceo-playbook \
 
 The macOS app bundle and pilot integration test have been verified. Omarchy/Linux packaging and runtime have not yet been validated on a Linux host.
 
-The native renderer currently supports headings, paragraphs, quotes, and simple list items. It flags shortcodes, raw HTML, code, tables, and media as unsupported; switch to Website mode to see Hugo's full theme rendering. Automatic file watching and richer manifest-backed blocks are still in development; the Refresh button reloads the selected site on demand.
+The native renderer supports headings, paragraphs, quotes, simple list items, and the first declarative shortcode set: `ref`/`relref`, `button`, `lead`, `quick-answer`, and `faq`/`faq-item`. Unknown shortcodes, raw HTML, code, tables, and media remain Website-required; switch to Website mode to see Hugo's full theme rendering. Automatic file watching and richer manifest-backed blocks are still in development; the Refresh button reloads the selected site on demand.
 
 ## Design and implementation notes
 
@@ -53,5 +53,7 @@ The native renderer currently supports headings, paragraphs, quotes, and simple 
 - Current kickoff contract and pilot status: [`docs/implementation-kickoff.md`](docs/implementation-kickoff.md)
 - Manifest schema draft: [`schemas/hugo-client-manifest-v1.schema.json`](schemas/hugo-client-manifest-v1.schema.json)
 - Visual direction: [`docs/peak-saas-layout.jpeg`](docs/peak-saas-layout.jpeg)
+
+To resume implementation, start with the **Handoff for the next developer or agent** section in `docs/implementation-kickoff.md`. SC-1 through SC-4's first adapter set are complete. The next planned work is Chunk 2: Omarchy/Linux platform and runtime validation. SC-1 findings are in `docs/shortcode-inventory.md`.
 
 The working pilot is `/Users/johnjanuszczak/Projects/ceo-playbook`, a local Hugo site with nested menus, substantial content, and theme-specific shortcodes. The Rust integration test loads its resolved page index, menus, and local Hugo preview without modifying the site. The browser-only preview remains labeled demo data and must not be treated as repository output.

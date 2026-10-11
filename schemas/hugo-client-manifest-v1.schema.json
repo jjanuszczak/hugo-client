@@ -52,7 +52,7 @@
         "id": { "type": "string" },
         "label": { "type": "string" },
         "url": { "type": "string" },
-        "parent": { "type": "string" },
+        "parent": { "type": ["string", "null"] },
         "weight": { "type": "integer" },
         "external": { "type": "boolean" },
         "menu": { "enum": ["main", "footer"] }
@@ -76,7 +76,9 @@
         "language": { "type": "string" },
         "taxonomies": { "type": "object", "additionalProperties": { "type": "array", "items": { "type": "string" } } },
         "rendering": { "$ref": "#/$defs/rendering" },
-        "blocks": { "type": "array", "items": { "$ref": "#/$defs/block" } }
+        "blocks": { "type": "array", "items": { "$ref": "#/$defs/block" } },
+        "sourceDocument": { "$ref": "#/$defs/sourceDocument" },
+        "contentFlow": { "type": "array", "items": { "$ref": "#/$defs/contentFlowItem" } }
       },
       "additionalProperties": true
     },
@@ -89,6 +91,65 @@
         "reason": { "type": "string" }
       },
       "additionalProperties": true
+    },
+    "sourceDocument": {
+      "type": "object",
+      "required": ["format", "rawSource", "bodyStartByte", "shortcodeTokens"],
+      "properties": {
+        "format": { "const": "hugo-markdown" },
+        "rawSource": { "type": "string", "description": "Inert original source; never render or execute as HTML." },
+        "bodyStartByte": { "type": "integer", "minimum": 0 },
+        "roundTripPolicy": { "type": "string" },
+        "shortcodeTokens": { "type": "array", "items": { "$ref": "#/$defs/shortcodeToken" } }
+      },
+      "additionalProperties": true
+    },
+    "shortcodeToken": {
+      "type": "object",
+      "required": ["type", "name", "syntax", "closing", "selfClosing", "raw", "parameters", "disposition", "sourceRange"],
+      "properties": {
+        "type": { "const": "shortcode" },
+        "name": { "type": "string", "minLength": 1 },
+        "syntax": { "enum": ["angle", "percent"] },
+        "closing": { "type": "boolean" },
+        "selfClosing": { "type": "boolean" },
+        "raw": { "type": "string" },
+        "parameters": { "type": "array", "items": { "$ref": "#/$defs/shortcodeParameter" } },
+        "disposition": { "enum": ["native", "text-fallback", "website-required"] },
+        "sourceRange": { "$ref": "#/$defs/sourceRange" }
+      },
+      "additionalProperties": false
+    },
+    "shortcodeParameter": {
+      "type": "object",
+      "required": ["kind", "value", "raw"],
+      "properties": {
+        "kind": { "enum": ["named", "positional"] },
+        "name": { "type": ["string", "null"] },
+        "value": { "type": "string" },
+        "raw": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "sourceRange": {
+      "type": "object",
+      "required": ["startByte", "endByte", "startLine", "endLine"],
+      "properties": {
+        "startByte": { "type": "integer", "minimum": 0 },
+        "endByte": { "type": "integer", "minimum": 0 },
+        "startLine": { "type": "integer", "minimum": 1 },
+        "endLine": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": false
+    },
+    "contentFlowItem": {
+      "oneOf": [
+        { "type": "object", "required": ["type", "blocks"], "properties": { "type": { "const": "text" }, "blocks": { "type": "array", "items": { "$ref": "#/$defs/block" } }, "sourceRange": { "$ref": "#/$defs/sourceRange" } }, "additionalProperties": false },
+        { "type": "object", "required": ["type", "name", "disposition", "readableChildren", "sourceRange"], "properties": { "type": { "const": "shortcode" }, "name": { "type": "string" }, "disposition": { "enum": ["native", "text-fallback", "website-required"] }, "readableChildren": { "type": "array", "items": { "$ref": "#/$defs/block" } }, "sourceRange": { "$ref": "#/$defs/sourceRange" } }, "additionalProperties": false },
+        { "type": "object", "required": ["type", "label", "href", "sourceRange"], "properties": { "type": { "const": "link" }, "label": { "type": "string" }, "href": { "type": "string" }, "inline": { "type": "boolean" }, "sourceRange": { "$ref": "#/$defs/sourceRange" } }, "additionalProperties": false },
+        { "type": "object", "required": ["type", "title", "tone", "children", "sourceRange"], "properties": { "type": { "const": "callout" }, "title": { "type": "string" }, "tone": { "enum": ["note", "tip", "warning", "important"] }, "children": { "type": "array", "items": { "$ref": "#/$defs/block" } }, "sourceRange": { "$ref": "#/$defs/sourceRange" } }, "additionalProperties": false },
+        { "type": "object", "required": ["type", "items", "sourceRange"], "properties": { "type": { "const": "faq" }, "items": { "type": "array", "items": { "type": "object", "required": ["question", "answer", "sourceRange"], "properties": { "question": { "type": "string" }, "answer": { "type": "array", "items": { "$ref": "#/$defs/block" } }, "sourceRange": { "$ref": "#/$defs/sourceRange" } }, "additionalProperties": false } }, "sourceRange": { "$ref": "#/$defs/sourceRange" } }, "additionalProperties": false }
+      ]
     },
     "block": {
       "type": "object",

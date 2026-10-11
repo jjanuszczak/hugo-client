@@ -121,6 +121,58 @@ function renderBody(page) {
   }).join("");
 }
 
+function renderContentFlow(page) {
+  if (!Array.isArray(page.content_flow)) return renderBody(page);
+  const flow = mergeInlineReferenceLinks(page.content_flow);
+  return flow.map((item) => {
+    if (item.type === "text") return renderFlowBlocks(item.blocks || []);
+    if (item.type === "link") return `<a class="native-reference-link" href="${escapeHtml(item.href)}" data-native-href="${escapeHtml(item.href)}">${escapeHtml(item.label)}</a>`;
+    if (item.type === "callout") return `<aside class="shortcode-callout" role="note"><strong>${escapeHtml(item.title)}</strong>${renderFlowBlocks(item.children || [])}</aside>`;
+    if (item.type === "faq") return `<section class="native-faq" aria-label="Frequently asked questions">${(item.items || []).map((faq) => `<details class="native-faq-item"><summary>${escapeHtml(faq.question)}</summary>${renderFlowBlocks(faq.answer || [])}</details>`).join("")}</section>`;
+    if (item.type !== "shortcode") return "";
+    const children = renderFlowBlocks(item.readableChildren || []);
+    return `<section class="shortcode-placeholder" aria-label="Unsupported shortcode ${escapeHtml(item.name)}"><div class="shortcode-placeholder-heading"><span class="shortcode-icon" aria-hidden="true">⌘</span><div><strong>${escapeHtml(item.name)}</strong><span>Website rendering required</span></div><button class="shortcode-website-action" data-preview-website type="button">Open in Website <span aria-hidden="true">↗</span></button></div>${children ? `<div class="shortcode-readable-children"><span class="shortcode-child-label">Readable content</span>${children}</div>` : ""}</section>`;
+  }).join("");
+}
+
+function renderFlowBlocks(blocks) {
+  return blocks.map((block) => {
+    if (block.type === "heading") return `<h${block.level || 2}>${escapeHtml(manifestBlockText(block))}</h${block.level || 2}>`;
+    if (block.type === "quote") return `<blockquote>${escapeHtml(manifestBlockText(block))}</blockquote>`;
+    if (block.type === "paragraph") return `<p>${renderFlowInlines(block.inlines || [])}</p>`;
+    if (block.type === "list") return `<ul>${(block.items || []).map((item) => `<li>${renderFlowBlocks(item)}</li>`).join("")}</ul>`;
+    return "";
+  }).join("");
+}
+
+function renderFlowInlines(inlines) {
+  return inlines.map((inline) => {
+    if (inline.type === "link") return `<a class="native-reference-link" href="${escapeHtml(inline.href || "#")}" data-native-href="${escapeHtml(inline.href || "#")}">${escapeHtml(inline.text || "")}</a>`;
+    if (inline.type === "strong") return `<strong>${renderFlowInlines(inline.children || [])}</strong>`;
+    if (inline.type === "emphasis") return `<em>${renderFlowInlines(inline.children || [])}</em>`;
+    if (inline.type === "code") return `<code>${escapeHtml(inline.text || "")}</code>`;
+    return escapeHtml(inline.text || "");
+  }).join("");
+}
+
+function mergeInlineReferenceLinks(items) {
+  const flow = items.map((item) => ({ ...item, blocks: item.blocks ? item.blocks.map((block) => ({ ...block, inlines: block.inlines ? [...block.inlines] : undefined })) : undefined }));
+  for (let i = 1; i < flow.length - 1; i += 1) {
+    const link = flow[i];
+    const before = flow[i - 1];
+    const after = flow[i + 1];
+    if (link.type !== "link" || !link.inline || before.type !== "text" || after.type !== "text") continue;
+    const left = before.blocks?.at(-1);
+    const right = after.blocks?.[0];
+    if (!left || left.type !== "paragraph" || !right || right.type !== "paragraph") continue;
+    left.inlines = [...(left.inlines || []), { type: "link", text: link.label, href: link.href }, ...(right.inlines || [])];
+    before.blocks = [...before.blocks.slice(0, -1), left, ...after.blocks.slice(1)];
+    flow.splice(i, 2);
+    i -= 1;
+  }
+  return flow;
+}
+
 function manifestInlineText(inlines = []) {
   return inlines.map((inline) => inline.text || manifestInlineText(inline.children || [])).join("");
 }
@@ -153,6 +205,7 @@ function manifestPageToView(page) {
     published: !page.draft,
     tags: [...(page.taxonomies?.tags || []), ...(page.taxonomies?.categories || [])],
     body,
+    content_flow: page.contentFlow || null,
     has_unsupported_blocks: page.rendering?.mode !== "native",
   };
 }
@@ -170,7 +223,7 @@ function updatePage(pageId, { addTab = false } = {}) {
   $("#breadcrumb-title").textContent = page.title;
   $("#article-title").textContent = page.title;
   $("#article-summary").textContent = page.summary;
-  $("#article-body").innerHTML = renderBody(page);
+  $("#article-body").innerHTML = renderContentFlow(page);
   $("#article-kicker").textContent = page.section ? page.section.toUpperCase() : "SITE CONTENT";
   $("#field-title").textContent = page.title;
   $("#source-path").textContent = page.source_path || page.path;
@@ -206,8 +259,9 @@ function updatePage(pageId, { addTab = false } = {}) {
   $("#hero-image").hidden = !usingDemoData;
   $("#demo-byline").hidden = !usingDemoData;
   if (previewMode === "native" && usingDemoData) $("#article-body").insertAdjacentHTML("beforebegin", "<div class='native-omission'>Native preview shows declared content. Full theme header and footer are shown in Website mode.</div>");
-  if (page.has_unsupported_blocks) $("#article-body").insertAdjacentHTML("beforebegin", "<div class='unsupported-content'>This page contains Hugo shortcodes, raw HTML, or media blocks. They are omitted from the basic native preview.</div>");
-  if (previewMode === "web" && !usingDemoData) $("#article-body").innerHTML = "<div class='unsupported-content'>The Hugo website renderer is not connected yet. This page is shown using supported native Markdown blocks.</div>" + renderBody(page);
+  const hasShortcodePlaceholders = page.content_flow?.some((item) => item.type === "shortcode");
+  if (page.has_unsupported_blocks && !hasShortcodePlaceholders) $("#article-body").insertAdjacentHTML("beforebegin", "<div class='unsupported-content'>Some Hugo or raw HTML content is not represented in this native view.</div>");
+  if (previewMode === "web" && !usingDemoData) $("#article-body").innerHTML = "<div class='unsupported-content'>The Hugo website renderer is not connected yet. This page is shown using supported content.</div>" + renderContentFlow(page);
   $$(".page-row").forEach((row) => row.classList.toggle("current", row.dataset.page === pageId));
   $$(".tab[data-page]").forEach((tab) => tab.classList.toggle("active", tab.dataset.page === pageId));
   if (addTab) addOrActivateTab(pageId);
@@ -455,6 +509,21 @@ $("#close-inspector").addEventListener("click", () => toggleInspector(false));
 $(".mode-switch").addEventListener("click", (event) => {
   const button = event.target.closest(".mode-option");
   if (button) setPreview(button.dataset.mode);
+});
+$("#article-body").addEventListener("click", (event) => {
+  if (event.target.closest("[data-preview-website]")) setPreview("web");
+  const link = event.target.closest("[data-native-href]");
+  if (!link) return;
+  event.preventDefault();
+  const href = link.dataset.nativeHref;
+  let targetPath = href;
+  try { targetPath = new URL(href, projectPreviewUrl || window.location.href).pathname; } catch { /* keep unresolved local path */ }
+  const target = Object.entries(pages).find(([, page]) => {
+    try { return new URL(page.path, projectPreviewUrl || window.location.href).pathname === targetPath; }
+    catch { return page.path === href; }
+  });
+  if (target) updatePage(target[0], { addTab: true });
+  else setPreview("web");
 });
 $(".inspector-tabs").addEventListener("click", (event) => {
   const button = event.target.closest(".inspector-tab");

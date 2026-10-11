@@ -46,6 +46,8 @@ struct ContentPage {
     categories: Vec<String>,
     language: String,
     body: Vec<(String, String)>,
+    source_document: Value,
+    content_flow: Vec<Value>,
     has_unsupported_blocks: bool,
 }
 
@@ -136,6 +138,8 @@ fn load_project_root(root: &Path, preview: &PreviewServer) -> Result<ProjectSnap
         let source_path = field("path").to_string();
         let source = safe_read_content(&root, &source_path)?;
         let (body, has_unsupported_blocks) = markdown_blocks(&source);
+        let source_document = source_document(&source);
+        let content_flow = Vec::new();
         let title = field("title").trim().to_string();
         let summary_text = frontmatter_scalar(&source, "summary")
             .or_else(|| frontmatter_scalar(&source, "description"))
@@ -168,8 +172,33 @@ fn load_project_root(root: &Path, preview: &PreviewServer) -> Result<ProjectSnap
             categories,
             language,
             body,
+            source_document,
+            content_flow,
             has_unsupported_blocks,
         });
+    }
+
+    let base_url = config
+        .get("baseurl")
+        .or_else(|| config.get("baseURL"))
+        .and_then(Value::as_str)
+        .unwrap_or("");
+    let reference_paths = build_reference_paths(&pages, base_url);
+    for page in &mut pages {
+        let raw_source = page.source_document["rawSource"]
+            .as_str()
+            .unwrap_or_default();
+        page.content_flow = source_content_flow(
+            raw_source,
+            &page.source_document,
+            &page.source_path,
+            &reference_paths,
+        );
+        apply_adapter_dispositions(&mut page.source_document, &page.content_flow);
+        page.has_unsupported_blocks |= page
+            .content_flow
+            .iter()
+            .any(|item| item["type"] == "shortcode");
     }
 
     pages.sort_by(|left, right| {
@@ -191,12 +220,30 @@ fn load_project_root(root: &Path, preview: &PreviewServer) -> Result<ProjectSnap
     let main_menu = parse_menu(&config, "main");
     let footer_menu = parse_menu(&config, "footer");
     let manifest = build_manifest_v1(&config, &site_title, &main_menu, &footer_menu, &pages);
+    validate_manifest_v1(&manifest)?;
     let preview_url = start_hugo_preview(root, &hugo, preview)?;
     Ok(ProjectSnapshot {
         summary,
         manifest,
         preview_url,
     })
+}
+
+fn validate_manifest_v1(manifest: &Value) -> Result<(), String> {
+    let schema: Value = serde_json::from_str(include_str!(
+        "../../schemas/hugo-client-manifest-v1.schema.json"
+    ))
+    .map_err(|error| format!("Manifest v1 schema is invalid: {error}"))?;
+    let validator = jsonschema::options()
+        .with_draft(jsonschema::Draft::Draft202012)
+        .build(&schema)
+        .map_err(|error| format!("Cannot compile Manifest v1 schema: {error}"))?;
+    if let Err(error) = validator.validate(manifest) {
+        return Err(format!(
+            "Generated Manifest v1 failed schema validation: {error}"
+        ));
+    }
+    Ok(())
 }
 
 fn build_manifest_v1(
@@ -272,7 +319,9 @@ fn build_manifest_v1(
                         "All detected blocks use the supported native subset."
                     }
                 },
-                "blocks": blocks
+                "blocks": blocks,
+                "sourceDocument": page.source_document,
+                "contentFlow": page.content_flow
             });
             if !page.date.is_empty() {
                 manifest_page["date"] = json!(page.date);
@@ -332,6 +381,488 @@ fn manifest_blocks(body: &[(String, String)]) -> Vec<Value> {
         }
     }
     blocks
+}
+
+/// Lossless editing envelope. `rawSource` is inert Markdown, never HTML; byte ranges
+/// address the original UTF-8 file. Token records are hints, not a replacement AST.
+fn source_document(source: &str) -> Value {
+    let body_start = source_body_start(source);
+    let body = &source[body_start..];
+    let mut tokens = Vec::new();
+    let mut cursor = 0;
+    while let Some(relative) = body[cursor..].find("{{") {
+        let start = cursor + relative;
+        let Some((open, close, syntax)) = (match body.get(start..start + 3) {
+            Some("{{<") => Some(("{{<", ">}}", "angle")),
+            Some("{{%") => Some(("{{%", "%}}", "percent")),
+            _ => None,
+        }) else {
+            cursor = start + 2;
+            continue;
+        };
+        let content_start = start + open.len();
+        let Some(end_rel) = body[content_start..].find(close) else {
+            cursor = content_start;
+            continue;
+        };
+        let end = content_start + end_rel + close.len();
+        let raw = &body[start..end];
+        let inner = body[content_start..content_start + end_rel].trim();
+        let words = shortcode_words(inner);
+        if let Some(name) = words.first() {
+            let closing = name.starts_with('/');
+            let shortcode_name = name.trim_start_matches('/');
+            let self_closing = inner.ends_with('/');
+            let params = words.iter().skip(1).map(|word| {
+                let (key, value) = word.split_once('=').map(|(k,v)| (Some(k),v)).unwrap_or((None,word.as_str()));
+                json!({"kind": if key.is_some() {"named"} else {"positional"}, "name": key, "value": value.trim_matches(['"', '\'']), "raw": word})
+            }).collect::<Vec<_>>();
+            let abs_start = body_start + start;
+            let abs_end = body_start + end;
+            tokens.push(json!({"type":"shortcode", "name":shortcode_name, "syntax":syntax,
+                "closing":closing, "selfClosing":self_closing, "raw":raw, "parameters":params,
+                "disposition":"website-required", "sourceRange":source_range(source, abs_start, abs_end)}));
+        }
+        cursor = end;
+    }
+    json!({"format":"hugo-markdown", "rawSource":source, "bodyStartByte":body_start,
+        "shortcodeTokens":tokens, "roundTripPolicy":"Preserve rawSource; edits replace explicit byte ranges only."})
+}
+
+/// Ordered safe render flow for SC-3. Plain Markdown chunks reuse the conservative
+/// native subset parser; shortcode spans become inert placeholders with child text.
+fn build_reference_paths(
+    pages: &[ContentPage],
+    base_url: &str,
+) -> std::collections::HashMap<String, String> {
+    let mut paths = std::collections::HashMap::new();
+    for page in pages {
+        let site_path = local_site_path(&page.path, base_url);
+        let mut keys = vec![page.source_path.as_str()];
+        let without_content = page
+            .source_path
+            .strip_prefix("content/")
+            .unwrap_or(&page.source_path);
+        keys.push(without_content);
+        for key in keys {
+            let normalized = normalize_ref_key(key);
+            if !normalized.is_empty() {
+                paths.insert(normalized.clone(), site_path.clone());
+            }
+        }
+        let normalized_url = normalize_ref_key(&site_path);
+        paths.insert(normalized_url, site_path.clone());
+    }
+    paths
+}
+
+fn normalize_ref_key(value: &str) -> String {
+    let mut key = value.trim().trim_matches(['"', '\'', '/']).to_string();
+    if key.starts_with("content/") {
+        key = key[8..].to_string();
+    }
+    if key.ends_with(".md") {
+        key.truncate(key.len() - 3);
+    }
+    if key.ends_with("/index") {
+        key.truncate(key.len() - 6);
+    }
+    key.trim_matches('/').to_string()
+}
+
+fn source_content_flow(
+    source: &str,
+    document: &Value,
+    source_path: &str,
+    reference_paths: &std::collections::HashMap<String, String>,
+) -> Vec<Value> {
+    let body_start = document["bodyStartByte"].as_u64().unwrap_or(0) as usize;
+    let tokens = document["shortcodeTokens"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    let mut open: Vec<(String, usize, usize)> = Vec::new();
+    let mut spans: Vec<(usize, usize, String)> = Vec::new();
+    for token in &tokens {
+        let range = &token["sourceRange"];
+        let start = range["startByte"].as_u64().unwrap_or(0) as usize;
+        let end = range["endByte"].as_u64().unwrap_or(0) as usize;
+        let name = token["name"].as_str().unwrap_or("shortcode").to_string();
+        if token["closing"] == true {
+            if let Some(index) = open
+                .iter()
+                .rposition(|(candidate, _, _)| candidate == &name)
+            {
+                let (outer_name, outer_start, _) = open.remove(index);
+                if index == 0 {
+                    spans.push((outer_start, end, outer_name));
+                }
+            } else {
+                spans.push((start, end, name));
+            }
+        } else if token["selfClosing"] == true || !has_closing_shortcode(&tokens, token, &name) {
+            spans.push((start, end, name));
+        } else {
+            open.push((name, start, end));
+        }
+    }
+    for (name, start, end) in open {
+        spans.push((start, end, name));
+    }
+    spans.sort_by_key(|span| span.0);
+
+    let mut flow = Vec::new();
+    let mut cursor = body_start;
+    for (start, end, name) in spans {
+        let start = start.max(cursor).min(source.len());
+        let end = end.max(start).min(source.len());
+        let token = tokens.iter().find(|token| {
+            token["sourceRange"]["startByte"].as_u64() == Some(start as u64)
+                && token["closing"] != true
+        });
+        let paired = token.is_some_and(|token| has_closing_shortcode(&tokens, token, &name));
+        let raw_before = &source[cursor..start];
+        let mut next_cursor = end;
+        let mut text_before = raw_before;
+        let mut inline_link = None;
+        if matches!(name.as_str(), "ref" | "relref") {
+            let target = token
+                .and_then(shortcode_parameter_value)
+                .unwrap_or_default();
+            let resolved = resolve_reference(&target, source_path, reference_paths);
+            if let Some(href) = resolved {
+                if let Some((prefix_len, label, after_len)) =
+                    markdown_link_context(raw_before, &source[end..])
+                {
+                    text_before = &raw_before[..prefix_len];
+                    next_cursor = end + after_len;
+                    inline_link = Some((label, href));
+                } else {
+                    inline_link = Some((
+                        target.rsplit('/').next().unwrap_or(&target).to_string(),
+                        href,
+                    ));
+                }
+            }
+        }
+        append_text_flow(&mut flow, text_before);
+        if let Some((label, href)) = inline_link {
+            flow.push(
+                json!({"type":"link", "label":label, "href":href, "inline":true,
+                "sourceRange":source_range(source, start, end)}),
+            );
+            cursor = next_cursor;
+            continue;
+        }
+        let child_source = if end > start {
+            let mut child = String::new();
+            let mut child_cursor = start;
+            for token in &tokens {
+                let token_start = token["sourceRange"]["startByte"].as_u64().unwrap_or(0) as usize;
+                let token_end = token["sourceRange"]["endByte"].as_u64().unwrap_or(0) as usize;
+                if token_start >= start && token_end <= end {
+                    if token_start >= child_cursor {
+                        child.push_str(&source[child_cursor..token_start]);
+                    }
+                    child_cursor = token_end;
+                }
+            }
+            if child_cursor <= end {
+                child.push_str(&source[child_cursor..end]);
+            }
+            child
+        } else {
+            String::new()
+        };
+        let (child_blocks, _) = markdown_blocks(&child_source);
+        let child_blocks = manifest_blocks(&child_blocks);
+        let range = source_range(source, start, end);
+        match name.as_str() {
+            "quick-answer" if paired => flow.push(json!({"type":"callout", "title":"Quick Answer", "tone":"note", "children":child_blocks, "sourceRange":range})),
+            "lead" if paired => {
+                if !child_blocks.is_empty() { flow.push(json!({"type":"text", "blocks":child_blocks, "sourceRange":range})); }
+            }
+            "faq" if paired => flow.push(json!({"type":"faq", "items":faq_items(&tokens, source, start, end), "sourceRange":range})),
+            "button" if paired => {
+                let target = token.and_then(|value| named_shortcode_parameter(value, &["href", "pageRef", "pageref"])).unwrap_or_default();
+                if let Some(href) = resolve_reference(&target, source_path, reference_paths) {
+                    let label = child_blocks.iter().map(block_plain_text).filter(|text| !text.is_empty()).collect::<Vec<_>>().join(" ");
+                    flow.push(json!({"type":"link", "label":if label.is_empty() { target } else { label }, "href":href, "sourceRange":range}));
+                } else {
+                    flow.push(json!({"type":"shortcode", "name":name, "disposition":"website-required", "readableChildren":child_blocks, "sourceRange":range}));
+                }
+            }
+            _ => flow.push(json!({"type":"shortcode", "name":name, "disposition":"website-required",
+                "readableChildren":child_blocks, "sourceRange":range})),
+        }
+        cursor = end;
+    }
+    append_text_flow(&mut flow, &source[cursor..]);
+    flow
+}
+
+fn shortcode_parameter_value(token: &Value) -> Option<String> {
+    token["parameters"]
+        .as_array()?
+        .iter()
+        .find_map(|parameter| parameter["value"].as_str().map(str::to_string))
+}
+
+fn named_shortcode_parameter(token: &Value, names: &[&str]) -> Option<String> {
+    token["parameters"]
+        .as_array()?
+        .iter()
+        .find_map(|parameter| {
+            let name = parameter["name"].as_str()?;
+            names
+                .contains(&name)
+                .then(|| parameter["value"].as_str().unwrap_or_default().to_string())
+        })
+}
+
+fn block_plain_text(block: &Value) -> String {
+    if let Some(text) = block["text"].as_str() {
+        return text.to_string();
+    }
+    if let Some(inlines) = block["inlines"].as_array() {
+        return inlines
+            .iter()
+            .filter_map(|inline| inline["text"].as_str())
+            .collect::<Vec<_>>()
+            .join("");
+    }
+    String::new()
+}
+
+fn resolve_reference(
+    target: &str,
+    source_path: &str,
+    paths: &std::collections::HashMap<String, String>,
+) -> Option<String> {
+    if let Some(url) = safe_reference_url(target) {
+        return Some(url);
+    }
+    let suffix_start = target.find(['#', '?']).unwrap_or(target.len());
+    let (path_part, suffix) = target.split_at(suffix_start);
+    let key = normalize_ref_key(path_part);
+    if let Some(path) = paths.get(&key) {
+        return Some(format!("{path}{suffix}"));
+    }
+    if !path_part.starts_with('/') {
+        let parent = Path::new(source_path)
+            .parent()
+            .unwrap_or_else(|| Path::new("content"));
+        let mut parts = parent
+            .strip_prefix("content")
+            .unwrap_or(parent)
+            .components()
+            .filter_map(|part| part.as_os_str().to_str().map(str::to_string))
+            .collect::<Vec<_>>();
+        for part in Path::new(path_part).components() {
+            match part {
+                std::path::Component::ParentDir => {
+                    parts.pop();
+                }
+                std::path::Component::Normal(value) => {
+                    parts.push(value.to_string_lossy().to_string())
+                }
+                _ => {}
+            }
+        }
+        if let Some(path) = paths.get(&normalize_ref_key(&parts.join("/"))) {
+            return Some(format!("{path}{suffix}"));
+        }
+    } else if path_part.starts_with('/') && !path_part.starts_with("//") {
+        return Some(format!("{path_part}{suffix}"));
+    }
+    None
+}
+
+fn apply_adapter_dispositions(document: &mut Value, flow: &[Value]) {
+    let mut adapted_ranges = Vec::new();
+    for item in flow {
+        let range = &item["sourceRange"];
+        if let (Some(start), Some(end)) = (range["startByte"].as_u64(), range["endByte"].as_u64()) {
+            if matches!(
+                item["type"].as_str(),
+                Some("link" | "callout" | "faq" | "text")
+            ) {
+                adapted_ranges.push((start, end));
+            }
+        }
+        if item["type"] == "faq" {
+            if let Some(items) = item["items"].as_array() {
+                for faq_item in items {
+                    let range = &faq_item["sourceRange"];
+                    if let (Some(start), Some(end)) =
+                        (range["startByte"].as_u64(), range["endByte"].as_u64())
+                    {
+                        adapted_ranges.push((start, end));
+                    }
+                }
+            }
+        }
+    }
+    if let Some(tokens) = document["shortcodeTokens"].as_array_mut() {
+        for token in tokens {
+            let name = token["name"].as_str().unwrap_or_default();
+            let range = &token["sourceRange"];
+            let start = range["startByte"].as_u64().unwrap_or(0);
+            let end = range["endByte"].as_u64().unwrap_or(0);
+            let adapted = adapted_ranges.iter().any(|(flow_start, flow_end)| {
+                if matches!(name, "ref" | "relref" | "button") {
+                    *flow_start == start && *flow_end == end
+                } else {
+                    *flow_start <= start && *flow_end >= end
+                }
+            });
+            if adapted {
+                token["disposition"] = json!("native");
+            }
+        }
+    }
+}
+
+fn safe_reference_url(value: &str) -> Option<String> {
+    (value.starts_with("https://") || value.starts_with("http://")).then(|| value.to_string())
+}
+
+fn markdown_link_context(before: &str, after: &str) -> Option<(usize, String, usize)> {
+    if !after.starts_with(')') || !before.ends_with("](") {
+        return None;
+    }
+    let opener = before[..before.len() - 2].rfind('[')?;
+    let label = &before[opener + 1..before.len() - 2];
+    Some((opener, label.to_string(), 1))
+}
+
+fn faq_items(tokens: &[Value], source: &str, start: usize, end: usize) -> Vec<Value> {
+    let mut items = Vec::new();
+    for (index, token) in tokens.iter().enumerate() {
+        if token["name"] != "faq-item" || token["closing"] == true {
+            continue;
+        }
+        let item_start = token["sourceRange"]["startByte"].as_u64().unwrap_or(0) as usize;
+        if item_start < start || item_start >= end {
+            continue;
+        }
+        let Some(close) = tokens.iter().skip(index + 1).find(|candidate| {
+            candidate["name"] == "faq-item"
+                && candidate["closing"] == true
+                && candidate["sourceRange"]["startByte"].as_u64().unwrap_or(0) as usize > item_start
+        }) else {
+            continue;
+        };
+        let item_end = close["sourceRange"]["endByte"].as_u64().unwrap_or(0) as usize;
+        if item_end > end {
+            continue;
+        }
+        let question = token["parameters"]
+            .as_array()
+            .and_then(|params| params.iter().find(|param| param["name"] == "question"))
+            .and_then(|param| param["value"].as_str())
+            .unwrap_or("Question");
+        let mut answer = String::new();
+        let mut cursor = token["sourceRange"]["endByte"].as_u64().unwrap_or(0) as usize;
+        for nested in tokens.iter().skip(index + 1) {
+            let nested_start = nested["sourceRange"]["startByte"].as_u64().unwrap_or(0) as usize;
+            let nested_end = nested["sourceRange"]["endByte"].as_u64().unwrap_or(0) as usize;
+            if nested_start >= item_end {
+                break;
+            }
+            if nested_start >= cursor {
+                answer.push_str(&source[cursor..nested_start]);
+                cursor = nested_end;
+            }
+        }
+        if cursor <= item_end {
+            answer.push_str(&source[cursor..item_end]);
+        }
+        let (answer_blocks, _) = markdown_blocks(&answer);
+        items.push(
+            json!({"question":question, "answer":manifest_blocks(&answer_blocks),
+            "sourceRange":source_range(source, item_start, item_end)}),
+        );
+    }
+    items
+}
+
+fn has_closing_shortcode(tokens: &[Value], current: &Value, name: &str) -> bool {
+    let current_start = current["sourceRange"]["startByte"].as_u64().unwrap_or(0);
+    tokens.iter().any(|candidate| {
+        candidate["closing"] == true
+            && candidate["name"].as_str() == Some(name)
+            && candidate["sourceRange"]["startByte"].as_u64().unwrap_or(0) > current_start
+    })
+}
+
+fn append_text_flow(flow: &mut Vec<Value>, text: &str) {
+    let (blocks, _) = markdown_blocks(text);
+    if !blocks.is_empty() {
+        flow.push(json!({"type":"text", "blocks":manifest_blocks(&blocks)}));
+    }
+}
+
+fn shortcode_words(s: &str) -> Vec<String> {
+    let mut words = Vec::new();
+    let mut word = String::new();
+    let mut quote = None;
+    for c in s.chars() {
+        if let Some(q) = quote {
+            word.push(c);
+            if c == q {
+                quote = None;
+            }
+        } else if c == '"' || c == '\'' {
+            quote = Some(c);
+            word.push(c);
+        } else if c.is_whitespace() {
+            if !word.is_empty() {
+                words.push(std::mem::take(&mut word));
+            }
+        } else {
+            word.push(c);
+        }
+    }
+    if !word.is_empty() {
+        words.push(word);
+    }
+    words
+}
+
+fn source_range(source: &str, start: usize, end: usize) -> Value {
+    let line = |byte: usize| {
+        source.as_bytes()[..byte.min(source.len())]
+            .iter()
+            .filter(|&&b| b == b'\n')
+            .count()
+            + 1
+    };
+    json!({"startByte":start, "endByte":end, "startLine":line(start), "endLine":line(end)})
+}
+
+fn source_body_start(source: &str) -> usize {
+    let Some(first_end) = source.find('\n') else {
+        return 0;
+    };
+    let first = source[..first_end].trim_end_matches('\r');
+    let close = match first {
+        "---" => "---",
+        "+++" => "+++",
+        ";;;" => ";;;",
+        _ => return 0,
+    };
+    source[first_end + 1..]
+        .find(close)
+        .map(|i| first_end + 1 + i + close.len())
+        .map(|i| {
+            if source.as_bytes().get(i) == Some(&b'\n') {
+                i + 1
+            } else {
+                i
+            }
+        })
+        .unwrap_or(0)
 }
 
 fn local_site_path(permalink: &str, base_url: &str) -> String {
@@ -733,7 +1264,11 @@ fn markdown_blocks(source: &str) -> (Vec<(String, String)>, bool) {
             }
             continue;
         }
-        if trimmed.starts_with("{{<") || trimmed.starts_with("{{%") || trimmed.starts_with('<') {
+        if trimmed.starts_with("{{<") || trimmed.starts_with("{{%") {
+            flush_paragraph(&mut paragraph, &mut blocks, "p");
+            continue;
+        }
+        if trimmed.starts_with('<') {
             flush_paragraph(&mut paragraph, &mut blocks, "p");
             unsupported = true;
             continue;
@@ -1038,6 +1573,21 @@ mod tests {
         parse_csv, strip_front_matter, PreviewServer,
     };
 
+    fn preview_get(address: &str, path: &str) -> String {
+        let mut stream =
+            std::net::TcpStream::connect(address).expect("preview server should accept requests");
+        use std::io::{Read, Write};
+        stream.write_all(format!("GET {path} HTTP/1.1\r\nHost: {address}\r\nConnection: close\r\nAccept-Encoding: identity\r\n\r\n").as_bytes()).expect("request should be sent");
+        stream
+            .set_read_timeout(Some(std::time::Duration::from_secs(10)))
+            .expect("preview response timeout should be set");
+        let mut response = Vec::new();
+        stream
+            .read_to_end(&mut response)
+            .expect("preview response should be readable");
+        String::from_utf8_lossy(&response).into_owned()
+    }
+
     #[test]
     fn parses_hugo_csv_fields_with_quoted_commas() {
         let records = parse_csv("path,title,draft\ncontent/a.md,\"Scale, then exit\",false\n");
@@ -1082,6 +1632,122 @@ mod tests {
             markdown_blocks("Text.\n\n{{< feature-grid >}}\n\n<div>theme</div>");
         assert!(unsupported);
         assert_eq!(first_paragraph(&blocks), "Text.");
+    }
+
+    #[test]
+    fn source_document_preserves_shortcode_lexemes_and_exact_ranges() {
+        let source = "---\ntitle: Demo\n---\nBefore {{< note tone=\"warm\" 42 >}}inside {{% child key='v' %}}tail{{% /child %}}{{< /note >}} after";
+        let document = super::source_document(source);
+        assert_eq!(document["rawSource"], source);
+        assert_eq!(document["bodyStartByte"], 20);
+        let tokens = document["shortcodeTokens"].as_array().unwrap();
+        assert_eq!(tokens.len(), 4);
+        assert_eq!(tokens[0]["name"], "note");
+        assert_eq!(tokens[0]["parameters"][0]["raw"], "tone=\"warm\"");
+        assert_eq!(tokens[0]["parameters"][1]["kind"], "positional");
+        assert_eq!(tokens[0]["disposition"], "website-required");
+        let range = tokens[0]["sourceRange"]["startByte"].as_u64().unwrap() as usize;
+        let end = tokens[0]["sourceRange"]["endByte"].as_u64().unwrap() as usize;
+        assert_eq!(&source[range..end], tokens[0]["raw"].as_str().unwrap());
+        assert!(tokens[1]["syntax"] == "percent");
+        assert_eq!(tokens[2]["closing"], true);
+    }
+
+    #[test]
+    fn manifest_schema_accepts_source_document_and_rejects_invalid_disposition() {
+        let doc = super::source_document("{{< card title=\"Hello\" >}}child{{< /card >}}");
+        let flow = super::source_content_flow(
+            "{{< card title=\"Hello\" >}}child{{< /card >}}",
+            &doc,
+            "content/demo.md",
+            &std::collections::HashMap::new(),
+        );
+        let manifest = serde_json::json!({"schemaVersion":1,"site":{"title":"Demo"},"pages":[{
+            "id":"content/demo.md","path":"/demo/","title":"Demo",
+            "rendering":{"mode":"mixed"},"sourceDocument":doc,"contentFlow":flow
+        }]});
+        super::validate_manifest_v1(&manifest).expect("fixture should satisfy schema");
+        let mut invalid = manifest;
+        invalid["pages"][0]["sourceDocument"]["shortcodeTokens"][0]["disposition"] =
+            serde_json::json!("guess");
+        assert!(super::validate_manifest_v1(&invalid).is_err());
+    }
+
+    #[test]
+    fn quick_answer_maps_to_a_native_callout_between_surrounding_blocks() {
+        let source = "Before.\n\n{{< quick-answer >}}\nReadable **child** text.\n\n{{< /quick-answer >}}\n\nAfter.";
+        let doc = super::source_document(source);
+        let flow = super::source_content_flow(
+            source,
+            &doc,
+            "content/demo.md",
+            &std::collections::HashMap::new(),
+        );
+        assert_eq!(flow.len(), 3);
+        assert_eq!(flow[0]["blocks"][0]["type"], "paragraph");
+        assert_eq!(flow[0]["blocks"][0]["inlines"][0]["text"], "Before.");
+        assert_eq!(flow[1]["type"], "callout");
+        assert_eq!(flow[1]["title"], "Quick Answer");
+        assert_eq!(
+            flow[1]["children"][0]["inlines"][0]["text"],
+            "Readable child text."
+        );
+        assert_eq!(flow[2]["blocks"][0]["inlines"][0]["text"], "After.");
+        let mut doc_with_dispositions = doc;
+        super::apply_adapter_dispositions(&mut doc_with_dispositions, &flow);
+        assert!(doc_with_dispositions["shortcodeTokens"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|token| token["disposition"] == "native"));
+    }
+
+    #[test]
+    fn malformed_native_wrapper_stays_website_required() {
+        let source = "{{< quick-answer >}}No closing tag.";
+        let mut doc = super::source_document(source);
+        let flow = super::source_content_flow(
+            source,
+            &doc,
+            "content/demo.md",
+            &std::collections::HashMap::new(),
+        );
+        super::apply_adapter_dispositions(&mut doc, &flow);
+        assert_eq!(flow[0]["type"], "shortcode");
+        assert_eq!(doc["shortcodeTokens"][0]["disposition"], "website-required");
+    }
+
+    #[test]
+    fn relref_maps_to_a_resolved_native_link_and_faq_items_keep_questions() {
+        let source = "A [guide]({{< relref \"/guide\" >}}) link.\n\n{{< faq >}}\n{{% faq-item question=\"Why?\" %}}An answer.{{% /faq-item %}}\n{{< /faq >}}";
+        let doc = super::source_document(source);
+        let refs =
+            std::collections::HashMap::from([(String::from("guide"), String::from("/guide/"))]);
+        let flow = super::source_content_flow(source, &doc, "content/index.md", &refs);
+        let link = flow.iter().find(|item| item["type"] == "link").unwrap();
+        assert_eq!(link["label"], "guide");
+        assert_eq!(link["href"], "/guide/");
+        assert_eq!(link["inline"], true);
+        let faq = flow.iter().find(|item| item["type"] == "faq").unwrap();
+        assert_eq!(faq["items"][0]["question"], "Why?");
+        assert_eq!(
+            faq["items"][0]["answer"][0]["inlines"][0]["text"],
+            "An answer."
+        );
+    }
+
+    #[test]
+    fn lead_flattens_and_button_becomes_an_accessible_link() {
+        let source = "{{< lead >}}A lead paragraph.{{< /lead >}}\n\n{{< button href=\"/contact\" >}}Contact us{{< /button >}}";
+        let doc = super::source_document(source);
+        let refs =
+            std::collections::HashMap::from([(String::from("contact"), String::from("/contact/"))]);
+        let flow = super::source_content_flow(source, &doc, "content/index.md", &refs);
+        assert!(flow.iter().any(|item| item["type"] == "text"
+            && item["blocks"][0]["inlines"][0]["text"] == "A lead paragraph."));
+        assert!(flow.iter().any(|item| item["type"] == "link"
+            && item["label"] == "Contact us"
+            && item["href"] == "/contact/"));
     }
 
     #[test]
@@ -1137,6 +1803,35 @@ mod tests {
                     .unwrap_or(&Vec::new())
                     .is_empty()
         }));
+        let shortcode_article = pages
+            .iter()
+            .find(|page| {
+                page["sourcePath"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .contains("10-million-inbox")
+            })
+            .expect("known shortcode fixture page should be in the manifest");
+        let shortcode_flow = shortcode_article["contentFlow"].as_array().unwrap();
+        assert!(
+            shortcode_flow
+                .iter()
+                .any(|item| item["type"] == "callout" && item["title"] == "Quick Answer"),
+            "native Quick Answer adapter missing"
+        );
+        assert!(
+            shortcode_flow.iter().any(|item| item["type"] == "faq"
+                && item["items"]
+                    .as_array()
+                    .is_some_and(|items| !items.is_empty())),
+            "native FAQ adapter missing"
+        );
+        let home = pages.iter().find(|page| page["kind"] == "home").unwrap();
+        assert!(home["contentFlow"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["type"] == "link" && item["href"] == "/about/"));
         assert_eq!(snapshot.manifest["schemaVersion"], 1);
         assert_eq!(
             snapshot.manifest["site"]["baseURL"],
@@ -1147,39 +1842,46 @@ mod tests {
             .preview_url
             .trim_start_matches("http://")
             .trim_end_matches('/');
-        let mut stream =
-            std::net::TcpStream::connect(address).expect("preview server should accept requests");
-        use std::io::{Read, Write};
-        stream
-            .write_all(
-                format!("GET / HTTP/1.1\r\nHost: {address}\r\nConnection: close\r\nAccept-Encoding: identity\r\n\r\n")
-                    .as_bytes(),
-            )
-            .expect("request should be sent");
-        stream
-            .set_read_timeout(Some(std::time::Duration::from_secs(10)))
-            .expect("preview response timeout should be set");
-        let mut response = Vec::new();
+        let response = preview_get(address, "/");
         let expected = "Don’t Just Launch. Scale to Exit.";
-        loop {
-            let mut buffer = [0u8; 8192];
-            match stream.read(&mut buffer) {
-                Ok(0) => break,
-                Ok(read) => {
-                    response.extend_from_slice(&buffer[..read]);
-                    if response
-                        .windows(expected.len())
-                        .any(|window| window == expected.as_bytes())
-                    {
-                        break;
-                    }
-                }
-                Err(error) => panic!("preview response could not be read: {error}"),
-            }
-        }
-        let response = String::from_utf8_lossy(&response);
         assert!(response.contains("HTTP/1.1 200"));
         assert!(response.contains(expected));
+        assert!(
+            response.contains("/about/"),
+            "Hugo Website output should resolve the home-page relref"
+        );
+        let button_page = pages
+            .iter()
+            .find(|page| {
+                page["sourcePath"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .contains("corporate-innovation")
+            })
+            .expect("button adapter fixture page should be in the manifest");
+        assert!(button_page["contentFlow"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| {
+                item["type"] == "link" && item["label"] == "Fix Your Innovation Strategy"
+            }));
+        let button_response = preview_get(address, button_page["path"].as_str().unwrap());
+        assert!(
+            button_response.contains("Fix Your Innovation Strategy"),
+            "Hugo Website output should preserve the button shortcode label"
+        );
+        let article_path = shortcode_article["path"].as_str().unwrap();
+        let article_response = preview_get(address, article_path);
+        assert!(article_response.contains("HTTP/1.1 200"));
+        assert!(
+            article_response.contains("Did Google buy Spirit Airlines"),
+            "Hugo Website output should retain FAQ questions"
+        );
+        assert!(
+            article_response.contains("The Spirit Airlines data auction is a warning"),
+            "Hugo Website output should retain quick-answer content"
+        );
         eprintln!(
             "Pilot: {} pages, {} main-menu items, {} footer-menu items",
             pages.len(),
