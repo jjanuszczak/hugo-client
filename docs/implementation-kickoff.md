@@ -1,11 +1,11 @@
 # MVP implementation kickoff
 
-**Status:** SC-1 through SC-4 first adapter set complete. Chunk 2 Omarchy/Linux validation is next.
+**Status:** SC-1 through SC-4 first adapter set complete. Chunk 3 implementation is complete on this branch; runtime failure-path checks remain open. Chunk 2 Omarchy/Linux validation remains the active platform handoff.
 **Updated:** 11 October 2026
 
 ## Objective
 
-Deliver a buildable desktop MVP that opens a real local Hugo site and helps its author review content, inspect metadata and validation results, and preview pages. The first targets are macOS and Linux, with Omarchy as the first Linux environment.
+Deliver a buildable desktop MVP that opens a real local Hugo site and helps its author review content, inspect metadata and validation results, and preview pages. The intended product direction extends to local or cloned repositories, upstream sync, lossless content editing, and explicit GitHub PR submission. The first targets are macOS and Linux, with Omarchy as the first Linux environment.
 
 ## Working product contract
 
@@ -15,6 +15,17 @@ Deliver a buildable desktop MVP that opens a real local Hugo site and helps its 
 - **Native scope:** render only declared content and supported blocks. Do not run arbitrary shortcodes, scripts, or theme HTML inside native mode.
 - **Fallback:** pages or blocks that need theme behavior remain available through WebView output. Native mode must identify itself and make omitted theme chrome clear.
 - **Implementation direction:** Rust core with Tauri 2 for the first desktop shell. The app window and platform menus/dialogs are native; the shared Peak SaaS inspired workspace is web-based and runs in the system WebView, so its controls are not OS-native widgets. macOS uses WKWebView and Linux uses WebKitGTK. Verify packaging, accessibility, keyboard/window conventions, and the WebKitGTK 4.1 dependency on Omarchy before calling the platform supported.
+
+## Future product direction
+
+The current implementation remains a read-only reviewer. The PRD now plans the following work after the MVP:
+
+1. Open existing local checkouts and clone remote Git repositories into an app-managed workspace; remember and reopen repositories.
+2. Show branch, upstream, dirty state, and ahead/behind status. Fetch and pull only through explicit actions, preserving dirty or diverged work and explaining conflicts before updates.
+3. Add editing only for a defined subset that can be saved without rewriting unknown Hugo syntax. Keep `sourceDocument.rawSource` authoritative, detect external file changes, and present a source diff before writes.
+4. Add branch, commit, push, and GitHub PR workflows with explicit review, secure credential handling, and recoverable error states.
+
+These are planned product capabilities, not claims about the current build. Chunk 2 Omarchy/Linux validation remains the immediate implementation handoff; repository lifecycle, editing, and PR work follow the read-only MVP as Chunks 11–13 in the PRD.
 
 ## Implementation progress
 
@@ -32,6 +43,7 @@ Deliver a buildable desktop MVP that opens a real local Hugo site and helps its 
 - Pilot review found CSS emitted by a shortcode appearing as text in Native mode. The parser now omits `<style>` and `<script>` payloads while preserving the unsupported-content warning and Website fallback; the app was rebuilt and the pilot was reloaded to verify the fix.
 - The Peak inspired browser preview still opens with Northstar demo content until a repository is selected in the desktop app.
 - Hugo preview output, cache, and processed resources are directed to temporary app paths. The pilot repo's tracked files remain unchanged.
+- Chunk 3 on `codex/chunk-3-hugo-adapter`: repository inspection now runs before content loading in the desktop flow. Hugo command failures identify the command, repository, exit status, and captured stderr/stdout. Preview startup captures Hugo diagnostics; a replacement preview is adopted only after it responds, so a failed load preserves the last good preview. Temporary output is cleaned up on startup failure, empty Hugo content indexes fail clearly, and the UI reports a failed load without marking it ready. Full diagnostics stay visible in a scrollable toast for ten seconds. Runtime failure-path verification remains open.
 - The generated desktop icon is stored under `src-tauri/icons/`.
 
 ## Workspace mapping
@@ -73,7 +85,7 @@ Open the pilot, review the home page and one article, inspect title/date/draft/t
 
 ## Handoff for the next developer or agent
 
-**SC-1 through SC-4 are complete for the first adapter set. Next recommended: Chunk 2 Omarchy/Linux runtime validation.** The inventory is [`shortcode-inventory.md`](shortcode-inventory.md). SC-2 preserves source for future edits and validates Manifest v1 against the checked-in schema. SC-3 adds ordered text/shortcode flow, readable child text, and a direct Website action. SC-4 maps `ref`/`relref`, `button`, `lead`, `quick-answer`, and `faq`/`faq-item` into safe native content. The figure adapter waits on Hugo-resolved asset metadata; a reusable site-side manifest generator remains open under Chunk 4.
+**SC-1 through SC-4 are complete for the first adapter set. Chunk 3 implementation is complete on this branch; next recommended: Chunk 2 Omarchy/Linux runtime validation.** The inventory is [`shortcode-inventory.md`](shortcode-inventory.md). SC-2 preserves source for future edits and validates Manifest v1 against the checked-in schema. SC-3 adds ordered text/shortcode flow, readable child text, and a direct Website action. SC-4 maps `ref`/`relref`, `button`, `lead`, `quick-answer`, and `faq`/`faq-item` into safe native content. The figure adapter waits on Hugo-resolved asset metadata; a reusable site-side manifest generator remains open under Chunk 4.
 
 ### SC-2 task
 
@@ -95,11 +107,12 @@ Open the pilot, review the home page and one article, inspect title/date/draft/t
 
 - **SC-3 (complete)** renders text fallback blocks and positioned placeholders with a direct Website-mode action. The app's ordered flow is built from source ranges and schema-validated; pilot loading confirms compatibility. This is a presentation fallback, not an editor. Current readable child rendering keeps text and link labels; exact Markdown/link targets remain in `sourceDocument.rawSource` for a later editor.
 - **SC-4 (first priority set complete)** implements `ref`/`relref`, `button`, `lead`, `quick-answer`, and nested `faq`/`faq-item` using declarative data. Pilot loading and schema validation cover the resulting links/callout/FAQ flow. Remaining inventory adapters are deferred by risk and dependency: figure needs Hugo-resolved asset metadata; interactive/media patterns remain Website-first. SC-4 depends on SC-2, Chunk 7's renderer, and Chunk 8's Website path.
-- The reusable site-side producer remains open under Chunk 4. Chunk 3 actionable Hugo build-error reporting and Chunk 2 Omarchy/Linux packaging/runtime validation are independent open work where dependencies permit.
+- The reusable site-side producer remains open under Chunk 4. Chunk 2 Omarchy/Linux packaging/runtime validation remains open and blocks Chunk 5. Chunk 3 runtime failure-path verification on representative Hugo failures remains outstanding.
 
 ### Working tree and verification
 
 - Workspace: `/Volumes/Dock NVMe SSD/Projects/hugo-client`.
+- Chunk 3 branch check: `cargo fmt --manifest-path src-tauri/Cargo.toml` and `git diff --check` passed after the implementation changes. Rust tests, app build, and runtime failure-path checks have not been run in this turn.
 - Product scope, full chunk/dependency plan, shortcode policy, and acceptance criteria: `docs/hugo-native-client-prd-spec.md`.
 - Completed SC-1 evidence and candidate mappings: `docs/shortcode-inventory.md`.
 - Current implementation and pilot status: this file. README build/run instructions: `README.md`.

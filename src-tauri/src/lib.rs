@@ -4,7 +4,7 @@ use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Output, Stdio};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 use tauri::{Manager, State};
@@ -66,17 +66,53 @@ struct PreviewServer {
 
 impl PreviewServer {
     fn stop(&self) {
-        if let Ok(mut slot) = self.child.lock() {
-            if let Some(mut child) = slot.take() {
-                let _ = child.kill();
-                let _ = child.wait();
+        let _ = self.replace(None, None);
+    }
+
+    fn replace(
+        &self,
+        mut next_child: Option<Child>,
+        next_directory: Option<PathBuf>,
+    ) -> Result<(), String> {
+        let mut child_slot = match self.child.lock() {
+            Ok(slot) => slot,
+            Err(_) => {
+                if let Some(child) = &mut next_child {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                }
+                if let Some(directory) = next_directory {
+                    let _ = std::fs::remove_dir_all(directory);
+                }
+                return Err("The preview server state is unavailable.".to_string());
             }
-        }
-        if let Ok(mut slot) = self.directory.lock() {
-            if let Some(directory) = slot.take() {
-                let _ = std::fs::remove_dir_all(directory);
+        };
+        let mut directory_slot = match self.directory.lock() {
+            Ok(slot) => slot,
+            Err(_) => {
+                if let Some(child) = &mut next_child {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                }
+                if let Some(directory) = next_directory {
+                    let _ = std::fs::remove_dir_all(directory);
+                }
+                return Err("The preview directory state is unavailable.".to_string());
             }
+        };
+        let previous_child = std::mem::replace(&mut *child_slot, next_child);
+        let previous_directory = std::mem::replace(&mut *directory_slot, next_directory);
+        drop(directory_slot);
+        drop(child_slot);
+
+        if let Some(mut child) = previous_child {
+            let _ = child.kill();
+            let _ = child.wait();
         }
+        if let Some(directory) = previous_directory {
+            let _ = std::fs::remove_dir_all(directory);
+        }
+        Ok(())
     }
 }
 
@@ -221,6 +257,12 @@ fn load_project_root(root: &Path, preview: &PreviewServer) -> Result<ProjectSnap
     let footer_menu = parse_menu(&config, "footer");
     let manifest = build_manifest_v1(&config, &site_title, &main_menu, &footer_menu, &pages);
     validate_manifest_v1(&manifest)?;
+    if pages.is_empty() {
+        return Err(format!(
+            "Hugo resolved no content pages in {}. Check the content directory and Hugo build configuration.",
+            root.display()
+        ));
+    }
     let preview_url = start_hugo_preview(root, &hugo, preview)?;
     Ok(ProjectSnapshot {
         summary,
@@ -892,7 +934,6 @@ fn local_site_path(permalink: &str, base_url: &str) -> String {
 }
 
 fn start_hugo_preview(root: &Path, hugo: &Path, state: &PreviewServer) -> Result<String, String> {
-    state.stop();
     let listener = TcpListener::bind("127.0.0.1:0")
         .map_err(|error| format!("Cannot reserve a local preview port: {error}"))?;
     let port = listener
@@ -907,9 +948,27 @@ fn start_hugo_preview(root: &Path, hugo: &Path, state: &PreviewServer) -> Result
     let cache_dir = cache_root.join("cache");
     let resource_dir = cache_root.join("resources");
     let destination_dir = cache_root.join("public");
-    std::fs::create_dir_all(&cache_dir).map_err(|error| error.to_string())?;
-    std::fs::create_dir_all(&resource_dir).map_err(|error| error.to_string())?;
-    std::fs::create_dir_all(&destination_dir).map_err(|error| error.to_string())?;
+    std::fs::create_dir_all(&cache_dir).map_err(|error| {
+        let _ = std::fs::remove_dir_all(&cache_root);
+        format!(
+            "Cannot create Hugo's temporary cache directory {}: {error}",
+            cache_dir.display()
+        )
+    })?;
+    std::fs::create_dir_all(&resource_dir).map_err(|error| {
+        let _ = std::fs::remove_dir_all(&cache_root);
+        format!(
+            "Cannot create Hugo's temporary resource directory {}: {error}",
+            resource_dir.display()
+        )
+    })?;
+    std::fs::create_dir_all(&destination_dir).map_err(|error| {
+        let _ = std::fs::remove_dir_all(&cache_root);
+        format!(
+            "Cannot create Hugo's temporary output directory {}: {error}",
+            destination_dir.display()
+        )
+    })?;
     let base_url = format!("http://127.0.0.1:{port}/");
     let port_text = port.to_string();
     let destination_text = destination_dir.to_string_lossy().to_string();
@@ -933,32 +992,105 @@ fn start_hugo_preview(root: &Path, hugo: &Path, state: &PreviewServer) -> Result
         .current_dir(root)
         .env("HUGO_RESOURCEDIR", &resource_dir)
         .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        .stderr(Stdio::piped())
         .spawn()
-        .map_err(|error| format!("Could not start Hugo's local preview server: {error}"))?;
+        .map_err(|error| {
+            let _ = std::fs::remove_dir_all(&cache_root);
+            format!(
+                "Could not start `hugo server` in {}: {error}",
+                root.display()
+            )
+        })?;
+
+    let preview_diagnostics = Arc::new(Mutex::new(String::new()));
+    let mut diagnostics_reader = child.stderr.take().map(|mut stderr| {
+        let captured = Arc::clone(&preview_diagnostics);
+        thread::spawn(move || {
+            let mut buffer = [0u8; 2048];
+            loop {
+                match stderr.read(&mut buffer) {
+                    Ok(0) | Err(_) => break,
+                    Ok(read) => {
+                        if let Ok(mut output) = captured.lock() {
+                            output.push_str(&String::from_utf8_lossy(&buffer[..read]));
+                            const MAX_DIAGNOSTICS_BYTES: usize = 16 * 1024;
+                            if output.len() > MAX_DIAGNOSTICS_BYTES {
+                                let trim_to = output.len() - MAX_DIAGNOSTICS_BYTES;
+                                let boundary = output
+                                    .char_indices()
+                                    .find(|(index, _)| *index >= trim_to)
+                                    .map(|(index, _)| index)
+                                    .unwrap_or(output.len());
+                                output.drain(..boundary);
+                            }
+                        }
+                    }
+                }
+            }
+        })
+    });
 
     let deadline = Instant::now() + Duration::from_secs(60);
     while Instant::now() < deadline {
         if preview_http_ready(port) {
-            let mut slot = state
-                .child
-                .lock()
-                .map_err(|_| "The preview server state is unavailable.".to_string())?;
-            *slot = Some(child);
-            drop(slot);
-            if let Ok(mut directory_slot) = state.directory.lock() {
-                *directory_slot = Some(cache_root);
+            if let Err(error) = state.replace(Some(child), Some(cache_root.clone())) {
+                let _ = std::fs::remove_dir_all(&cache_root);
+                return Err(error);
             }
             return Ok(base_url);
         }
-        if let Some(status) = child.try_wait().map_err(|error| error.to_string())? {
-            return Err(format!("Hugo's preview server stopped during startup ({status}). Check the Hugo site configuration."));
+        let status = match child.try_wait() {
+            Ok(status) => status,
+            Err(error) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                let _ = std::fs::remove_dir_all(&cache_root);
+                return Err(format!(
+                    "Could not monitor `hugo server` in {}: {error}",
+                    root.display()
+                ));
+            }
+        };
+        if let Some(status) = status {
+            if let Some(reader) = diagnostics_reader.take() {
+                let _ = reader.join();
+            }
+            let diagnostics = preview_diagnostics
+                .lock()
+                .map(|text| text.trim().to_string())
+                .unwrap_or_default();
+            let _ = std::fs::remove_dir_all(&cache_root);
+            let details = if diagnostics.is_empty() {
+                String::new()
+            } else {
+                format!("\nHugo diagnostics:\n{diagnostics}")
+            };
+            return Err(format!(
+                "`hugo server` stopped during startup in {} with status {status}.{details}",
+                root.display()
+            ));
         }
         thread::sleep(Duration::from_millis(100));
     }
     let _ = child.kill();
     let _ = child.wait();
-    Err("Hugo's local preview server did not become ready within 60 seconds.".to_string())
+    if let Some(reader) = diagnostics_reader.take() {
+        let _ = reader.join();
+    }
+    let diagnostics = preview_diagnostics
+        .lock()
+        .map(|text| text.trim().to_string())
+        .unwrap_or_default();
+    let _ = std::fs::remove_dir_all(&cache_root);
+    let details = if diagnostics.is_empty() {
+        String::new()
+    } else {
+        format!("\nHugo diagnostics:\n{diagnostics}")
+    };
+    Err(format!(
+        "`hugo server` did not become ready within 60 seconds for {}.{details}",
+        root.display()
+    ))
 }
 
 fn preview_http_ready(port: u16) -> bool {
@@ -1092,18 +1224,29 @@ fn find_hugo_binary() -> Option<PathBuf> {
 }
 
 fn run_hugo(binary: &Path, root: &Path, args: &[&str]) -> Result<Output, String> {
+    let command = std::iter::once("hugo")
+        .chain(args.iter().copied())
+        .collect::<Vec<_>>()
+        .join(" ");
     let output = Command::new(binary)
         .args(args)
         .current_dir(root)
         .output()
-        .map_err(|error| format!("Could not run Hugo: {error}"))?;
+        .map_err(|error| format!("Could not start `{command}` in {}: {error}", root.display()))?;
     if !output.status.success() {
-        let diagnostics = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        return Err(if diagnostics.is_empty() {
-            format!("Hugo exited with status {}.", output.status)
-        } else {
-            diagnostics
-        });
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        let diagnostics = match (stderr.is_empty(), stdout.is_empty()) {
+            (false, false) => format!("\nstderr:\n{stderr}\nstdout:\n{stdout}"),
+            (false, true) => format!("\nstderr:\n{stderr}"),
+            (true, false) => format!("\nstdout:\n{stdout}"),
+            (true, true) => String::new(),
+        };
+        return Err(format!(
+            "`{command}` failed in {} with status {}.{diagnostics}",
+            root.display(),
+            output.status
+        ));
     }
     Ok(output)
 }
