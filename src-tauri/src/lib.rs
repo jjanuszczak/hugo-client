@@ -271,7 +271,7 @@ fn load_project_root(root: &Path, preview: &PreviewServer) -> Result<ProjectSnap
     })
 }
 
-fn validate_manifest_v1(manifest: &Value) -> Result<(), String> {
+pub fn validate_manifest_v1(manifest: &Value) -> Result<(), String> {
     let schema: Value = serde_json::from_str(include_str!(
         "../../schemas/hugo-client-manifest-v1.schema.json"
     ))

@@ -1,0 +1,32 @@
+{
+  "chrome": {
+    "header": {
+      "title": "Manifest Fixture",
+      "text": "A declarative fixture site",
+      "logo": {
+        "path": "/images/fixture-logo.svg",
+        "alt": "Fixture logo",
+        "mediaType": "image/svg+xml"
+      },
+      "links": [
+        { "label": "About", "href": "/about/" },
+        { "label": "Hugo", "href": "https://gohugo.io/" }
+      ]
+    },
+    "footer": {
+      "text": "Footer links are optional declarative data.",
+      "links": [
+        { "label": "Email", "href": "mailto:hello@example.test" }
+      ]
+    }
+  },
+  "assets": [
+    {
+      "id": "fixture-logo",
+      "sourcePath": "static/images/fixture-logo.svg",
+      "path": "/images/fixture-logo.svg",
+      "mediaType": "image/svg+xml",
+      "alt": "Fixture logo"
+    }
+  ]
+}

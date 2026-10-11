@@ -1,0 +1,195 @@
+{{- $navigation := slice -}}
+{{- range (slice "main" "footer") -}}
+  {{- $menuName := . -}}
+  {{- with index site.Menus $menuName -}}
+    {{- $menuItems := partial "hugo-client/menu-items.html" (dict "entries" . "menu" $menuName) -}}
+    {{- range $menuItems -}}{{- $navigation = $navigation | append . -}}{{- end -}}
+  {{- end -}}
+{{- end -}}
+
+{{- $pages := slice -}}
+{{- range hugo.Sites -}}
+  {{- range .Pages -}}
+  {{- $sourcePage := . -}}
+  {{- $id := .RelPermalink -}}
+  {{- $sourcePath := "" -}}
+  {{- with .File -}}
+    {{- $sourcePath = .Path -}}
+    {{- if not (hasPrefix $sourcePath "content/") -}}
+      {{- $sourcePath = printf "content/%s" $sourcePath -}}
+    {{- end -}}
+    {{- $id = .Path -}}
+  {{- end -}}
+  {{- if $sourcePath -}}{{- $id = $sourcePath -}}{{- end -}}
+  {{- $declaration := .Param "hugoClient" -}}
+  {{- if not (reflect.IsMap $declaration) -}}
+    {{- $declaration = dict -}}
+  {{- end -}}
+  {{- $declaredBlocks := index $declaration "blocks" -}}
+  {{- $safeBlocks := slice -}}
+  {{- if reflect.IsSlice $declaredBlocks -}}
+    {{- range $declaredBlocks -}}
+      {{- if reflect.IsMap . -}}
+        {{- if in (slice "heading" "paragraph" "quote" "list") (index . "type") -}}
+          {{- $safeBlocks = $safeBlocks | append . -}}
+        {{- end -}}
+      {{- end -}}
+    {{- end -}}
+  {{- end -}}
+  {{- $mode := "web" -}}
+  {{- $reason := "This site-side producer exports resolved page metadata only. Hugo Website output remains the content rendering authority." -}}
+  {{- if $safeBlocks -}}
+    {{- $mode = "mixed" -}}
+    {{- $reason = "The site declares some native blocks. Remaining content uses Hugo Website output." -}}
+    {{- if and (eq (index $declaration "complete") true) (eq (len $safeBlocks) (len $declaredBlocks)) -}}
+      {{- $mode = "native" -}}
+      {{- $reason = "The site author declares these blocks complete for native rendering." -}}
+    {{- end -}}
+  {{- end -}}
+  {{- $page := dict
+    "id" $id
+    "path" .RelPermalink
+    "canonicalURL" .Permalink
+    "title" .Title
+    "kind" .Kind
+    "section" .Section
+    "language" .Lang
+    "draft" .Draft
+    "rendering" (dict
+      "mode" $mode
+      "fallbackURL" .RelPermalink
+      "reason" $reason
+    )
+  -}}
+  {{- if $safeBlocks -}}
+    {{- $page = merge $page (dict "blocks" $safeBlocks) -}}
+  {{- end -}}
+  {{- if $sourcePath -}}
+    {{- $page = merge $page (dict "sourcePath" $sourcePath) -}}
+  {{- end -}}
+  {{- with .Date -}}
+    {{- $page = merge $page (dict "date" (.Format "2006-01-02T15:04:05Z07:00")) -}}
+  {{- end -}}
+  {{- with .Description -}}
+    {{- $page = merge $page (dict "summary" .) -}}
+  {{- end -}}
+  {{- $taxonomies := dict -}}
+  {{- range (slice "tags" "categories") -}}
+    {{- $taxonomyName := . -}}
+    {{- $rawTerms := index $sourcePage.Params $taxonomyName -}}
+    {{- $terms := slice -}}
+    {{- if reflect.IsSlice $rawTerms -}}
+      {{- range $rawTerms -}}{{- if eq (printf "%T" .) "string" -}}{{- $terms = $terms | append . -}}{{- end -}}{{- end -}}
+    {{- else if eq (printf "%T" $rawTerms) "string" -}}
+      {{- $terms = $terms | append $rawTerms -}}
+    {{- end -}}
+    {{- if $terms -}}{{- $taxonomies = merge $taxonomies (dict $taxonomyName $terms) -}}{{- end -}}
+  {{- end -}}
+  {{- if $taxonomies -}}{{- $page = merge $page (dict "taxonomies" $taxonomies) -}}{{- end -}}
+  {{- $pages = $pages | append $page -}}
+  {{- end -}}
+{{- end -}}
+
+{{- $languages := slice -}}
+{{- range hugo.Sites -}}
+  {{- $languages = $languages | append .Language.Lang -}}
+{{- end -}}
+{{- if not $languages -}}
+  {{- $languages = slice site.Language.Lang -}}
+{{- end -}}
+
+{{- $data := hugo.Data.hugo_client_manifest -}}
+{{- if not (reflect.IsMap $data) -}}
+  {{- $data = dict -}}
+{{- end -}}
+{{- $assets := slice -}}
+{{- $assetInputs := index $data "assets" -}}
+{{- if reflect.IsSlice $assetInputs -}}
+  {{- range $assetInputs -}}
+    {{- if reflect.IsMap . -}}
+      {{- $id := index . "id" -}}
+      {{- $path := index . "path" -}}
+      {{- $mediaType := index . "mediaType" -}}
+      {{- if and (eq (printf "%T" $id) "string") (eq (printf "%T" $path) "string") (eq (printf "%T" $mediaType) "string") (hasPrefix $path "/") (not (hasPrefix $path "//")) (hasPrefix $mediaType "image/") -}}
+        {{- $asset := dict "id" $id "path" $path "mediaType" $mediaType -}}
+        {{- with index . "sourcePath" -}}{{- $asset = merge $asset (dict "sourcePath" .) -}}{{- end -}}
+        {{- with index . "alt" -}}{{- $asset = merge $asset (dict "alt" .) -}}{{- end -}}
+        {{- $assets = $assets | append $asset -}}
+      {{- end -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+
+{{- $chrome := dict -}}
+{{- $chromeInput := index $data "chrome" -}}
+{{- if reflect.IsMap $chromeInput -}}
+  {{- range (slice "header" "footer") -}}
+    {{- $regionName := . -}}
+    {{- $regionInput := index $chromeInput $regionName -}}
+    {{- if reflect.IsMap $regionInput -}}
+      {{- $region := dict -}}
+      {{- range (slice "title" "text") -}}
+        {{- $field := . -}}
+        {{- $value := index $regionInput $field -}}
+        {{- if eq (printf "%T" $value) "string" -}}
+          {{- $region = merge $region (dict $field $value) -}}
+        {{- end -}}
+      {{- end -}}
+      {{- $logoInput := index $regionInput "logo" -}}
+      {{- if eq (printf "%T" $logoInput) "string" -}}
+        {{- if and (hasPrefix $logoInput "/") (not (hasPrefix $logoInput "//")) -}}
+          {{- $region = merge $region (dict "logo" (dict "path" $logoInput)) -}}
+        {{- end -}}
+      {{- else if reflect.IsMap $logoInput -}}
+        {{- $logoPath := index $logoInput "path" -}}
+        {{- if and (eq (printf "%T" $logoPath) "string") (hasPrefix $logoPath "/") (not (hasPrefix $logoPath "//")) -}}
+          {{- $logo := dict "path" $logoPath -}}
+          {{- with index $logoInput "alt" -}}{{- if eq (printf "%T" .) "string" -}}{{- $logo = merge $logo (dict "alt" .) -}}{{- end -}}{{- end -}}
+          {{- with index $logoInput "mediaType" -}}{{- if eq (printf "%T" .) "string" -}}{{- $logo = merge $logo (dict "mediaType" .) -}}{{- end -}}{{- end -}}
+          {{- $region = merge $region (dict "logo" $logo) -}}
+        {{- end -}}
+      {{- end -}}
+      {{- $linkInputs := index $regionInput "links" -}}
+      {{- $links := slice -}}
+      {{- if reflect.IsSlice $linkInputs -}}
+        {{- range $linkInputs -}}
+          {{- if reflect.IsMap . -}}
+            {{- $label := index . "label" -}}
+            {{- $href := index . "href" -}}
+            {{- if and (eq (printf "%T" $label) "string") (eq (printf "%T" $href) "string") (or (hasPrefix $href "/") (hasPrefix $href "https://") (hasPrefix $href "http://") (hasPrefix $href "mailto:") (hasPrefix $href "tel:")) -}}
+              {{- $external := or (hasPrefix $href "http://") (hasPrefix $href "https://") (hasPrefix $href "mailto:") (hasPrefix $href "tel:") -}}
+              {{- $links = $links | append (dict "label" $label "href" $href "external" $external) -}}
+            {{- end -}}
+          {{- end -}}
+        {{- end -}}
+      {{- end -}}
+      {{- if $links -}}
+        {{- $region = merge $region (dict "links" $links) -}}
+      {{- end -}}
+      {{- if $region -}}
+        {{- $chrome = merge $chrome (dict $regionName $region) -}}
+      {{- end -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+
+{{- $site := dict
+  "title" site.Title
+  "baseURL" site.BaseURL
+  "defaultLanguage" site.Language.Lang
+  "languages" $languages
+-}}
+{{- if $chrome -}}
+  {{- $site = merge $site (dict "chrome" $chrome) -}}
+{{- else -}}
+  {{- $site = merge $site (dict "chromeOmittedReason" "The producer does not declare site chrome. Website mode preserves the full theme.") -}}
+{{- end -}}
+
+{{- $manifest := dict
+  "schemaVersion" 1
+  "site" $site
+  "navigation" $navigation
+  "pages" $pages
+  "assets" $assets
+-}}
+{{- $manifest | jsonify -}}
