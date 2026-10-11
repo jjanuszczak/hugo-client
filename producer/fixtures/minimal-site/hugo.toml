@@ -1,0 +1,24 @@
+baseURL = "https://example.test/"
+title = "Manifest Fixture"
+locale = "en-US"
+defaultContentLanguage = "en"
+
+[menus]
+  [[menus.main]]
+    name = "Guides"
+    pageRef = "/guides"
+    weight = 10
+    identifier = "guides"
+
+  [[menus.main]]
+    name = "First steps"
+    pageRef = "/guides/first-steps"
+    parent = "guides"
+    weight = 1
+    identifier = "first-steps"
+
+  [[menus.footer]]
+    name = "About"
+    pageRef = "/about"
+    weight = 10
+    identifier = "about"

@@ -1,0 +1,5 @@
+[outputFormats.hugoClientManifest]
+baseName = "hugo-client-manifest"
+mediaType = "application/json"
+isPlainText = true
+notAlternative = true
